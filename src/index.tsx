@@ -68,7 +68,12 @@ function Content() {
   return (
     <PanelSection title="Panel Section">
       <PanelSectionRow>
-        <div onClick={(e) => e.stopPropagation()}>
+        <div 
+          onClick={(e) => e.stopPropagation()}
+          style={{ 
+            display: "contents" 
+          }}
+        >
           <DropdownItem
             label="Dropdown Test"
             description={`Currently selected: ${selectedOption}`}
