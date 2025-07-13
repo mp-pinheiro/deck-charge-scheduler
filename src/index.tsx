@@ -14,7 +14,7 @@ import {
   toaster,
   // routerHook
 } from "@decky/api"
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { FaShip } from "react-icons/fa";
 
 // import logo from "../assets/logo.png";
@@ -31,24 +31,12 @@ const startTimer = callable<[], void>("start_timer");
 
 function Content() {
   const [result, setResult] = useState<number | undefined>();
-  const [selectedOption, setSelectedOption] = useState<string>("A");
-
-  // Dropdown options for the test
-  const dropdownOptions: SingleDropdownOption[] = [
-    { data: "A", label: "Option A" },
-    { data: "B", label: "Option B" },
-    { data: "C", label: "Option C" }
-  ];
+  const [selectedDropdown, setSelectedDropdown] = useState<string>("A");
 
   const onClick = async () => {
     const result = await add(Math.random(), Math.random());
     setResult(result);
   };
-
-  const onDropdownChange = useCallback((option: SingleDropdownOption) => {
-    console.log("Dropdown selection changed to:", option);
-    setSelectedOption(option.data);
-  }, []);
 
   return (
     <PanelSection title="Panel Section">
@@ -64,10 +52,17 @@ function Content() {
       <PanelSectionRow>
         <DropdownItem
           label="Dropdown Test"
-          description={`Currently selected: ${selectedOption}`}
-          rgOptions={dropdownOptions}
-          selectedOption={selectedOption}
-          onChange={onDropdownChange}
+          description={`Currently selected: ${selectedDropdown}`}
+          rgOptions={[
+            { data: "A", label: "Option A" },
+            { data: "B", label: "Option B" },
+            { data: "C", label: "Option C" }
+          ]}
+          selectedOption={selectedDropdown}
+          onChange={(option: SingleDropdownOption) => {
+            console.log("Dropdown selection changed to:", option);
+            setSelectedDropdown(option.data);
+          }}
         />
       </PanelSectionRow>
 
