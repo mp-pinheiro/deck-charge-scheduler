@@ -2,8 +2,9 @@ import {
   ButtonItem,
   PanelSection,
   PanelSectionRow,
-  Navigation,
-  staticClasses
+  staticClasses,
+  DropdownItem,
+  SingleDropdownOption
 } from "@decky/ui";
 import {
   addEventListener,
@@ -30,10 +31,22 @@ const startTimer = callable<[], void>("start_timer");
 
 function Content() {
   const [result, setResult] = useState<number | undefined>();
+  const [selectedOption, setSelectedOption] = useState<string>("A");
+
+  // Dropdown options for the test
+  const dropdownOptions: SingleDropdownOption[] = [
+    { data: "A", label: "Option A" },
+    { data: "B", label: "Option B" },
+    { data: "C", label: "Option C" }
+  ];
 
   const onClick = async () => {
     const result = await add(Math.random(), Math.random());
     setResult(result);
+  };
+
+  const onDropdownChange = (option: SingleDropdownOption) => {
+    setSelectedOption(option.data);
   };
 
   return (
@@ -46,6 +59,17 @@ function Content() {
           {result ?? "Add two numbers via Python"}
         </ButtonItem>
       </PanelSectionRow>
+      
+      <PanelSectionRow>
+        <DropdownItem
+          label="Dropdown Test"
+          description={`Currently selected: ${selectedOption}`}
+          rgOptions={dropdownOptions}
+          selectedOption={selectedOption}
+          onChange={onDropdownChange}
+        />
+      </PanelSectionRow>
+
       <PanelSectionRow>
         <ButtonItem
           layout="below"
