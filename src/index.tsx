@@ -14,7 +14,7 @@ import {
   toaster,
   // routerHook
 } from "@decky/api"
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { FaShip } from "react-icons/fa";
 
 // import logo from "../assets/logo.png";
@@ -45,9 +45,10 @@ function Content() {
     setResult(result);
   };
 
-  const onDropdownChange = (option: SingleDropdownOption) => {
+  const onDropdownChange = useCallback((option: SingleDropdownOption) => {
+    console.log("Dropdown selection changed to:", option);
     setSelectedOption(option.data);
-  };
+  }, []);
 
   return (
     <PanelSection title="Panel Section">
