@@ -1,8 +1,9 @@
 import {
   ButtonItem,
+  DropdownItem,
   PanelSection,
   PanelSectionRow,
-  Navigation,
+  SingleDropdownOption,
   staticClasses
 } from "@decky/ui";
 import {
@@ -28,16 +29,55 @@ const add = callable<[first: number, second: number], number>("add");
 // It starts a (python) timer which eventually emits the event 'timer_event'
 const startTimer = callable<[], void>("start_timer");
 
+// Move state outside component to prevent reset on re-mount
+let globalSelectedOption = "A";
+
 function Content() {
+  console.log("Content component rendering, globalSelectedOption:", globalSelectedOption);
+  
   const [result, setResult] = useState<number | undefined>();
+  const [selectedOption, setSelectedOption] = useState<string>(globalSelectedOption);
+
+  console.log("Content state - selectedOption:", selectedOption, "result:", result);
+
+  // Dropdown options for the test
+  const dropdownOptions: SingleDropdownOption[] = [
+    { data: "A", label: "Option A" },
+    { data: "B", label: "Option B" },
+    { data: "C", label: "Option C" }
+  ];
 
   const onClick = async () => {
+    console.log("Button clicked, calling add function");
     const result = await add(Math.random(), Math.random());
+    console.log("Add function result:", result);
     setResult(result);
+  };
+
+  const onDropdownChange = (option: SingleDropdownOption) => {
+    console.log("=== DROPDOWN CHANGE START ===");
+    console.log("Dropdown changing from", selectedOption, "to", option.data);
+    console.log("Option object:", option);
+    globalSelectedOption = option.data; // Update global state
+    console.log("Updated globalSelectedOption to:", globalSelectedOption);
+    setSelectedOption(option.data);     // Update component state
+    console.log("Called setSelectedOption with:", option.data);
+    console.log("=== DROPDOWN CHANGE END ===");
   };
 
   return (
     <PanelSection title="Panel Section">
+      <PanelSectionRow>
+        <div onClick={(e) => e.stopPropagation()}>
+          <DropdownItem
+            label="Dropdown Test"
+            description={`Currently selected: ${selectedOption}`}
+            rgOptions={dropdownOptions}
+            selectedOption={selectedOption}
+            onChange={onDropdownChange}
+          />
+        </div>
+      </PanelSectionRow>
       <PanelSectionRow>
         <ButtonItem
           layout="below"
