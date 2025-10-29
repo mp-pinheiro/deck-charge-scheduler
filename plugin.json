@@ -1,0 +1,11 @@
+{
+  "name": "Deck Charge Scheduler",
+  "author": "fairfruit",
+  "flags": [],
+  "api_version": 1,
+  "publish": {
+    "tags": ["battery", "power", "charging", "scheduler", "steam-deck"],
+    "description": "A charge scheduler plugin with GUI for battery health management on Steam Deck.",
+    "image": "https://opengraph.githubassets.com/1/SteamDeckHomebrew/decky-plugin-database"
+  }
+}

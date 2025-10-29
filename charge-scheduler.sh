@@ -14,6 +14,26 @@ DBUS_METHOD="SetMaxChargeLevel"
 # Log file
 LOG_FILE="$HOME/.local/share/charge-scheduler.log"
 
+# Configuration file
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_FILE="$SCRIPT_DIR/charge-scheduler.conf"
+
+# Load configuration from external file
+load_config() {
+    if [ -f "$CONFIG_FILE" ]; then
+        source "$CONFIG_FILE"
+        simple_log "Loaded configuration from $CONFIG_FILE"
+    else
+        # Fallback defaults if config file doesn't exist
+        MODE="schedule"
+        START_HOUR=8
+        START_MINUTE=0
+        DURATION_MINUTES=60
+        CHARGE_LIMIT=80
+        simple_log "Using default configuration (config file not found)"
+    fi
+}
+
 # Logging function
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE" 2>/dev/null || echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
@@ -64,12 +84,8 @@ get_status() {
 
 # Schedule check based on time windows
 check_schedule() {
-    # Default config (you can modify these)
-    MODE="schedule"  # schedule, always_full, always_limit
-    START_HOUR=8
-    START_MINUTE=0
-    DURATION_MINUTES=60
-    CHARGE_LIMIT=80
+    # Load configuration from external file
+    load_config
 
     current_hour=$(date +%H)
     current_minute=$(date +%M)
@@ -115,17 +131,21 @@ check_schedule() {
 # Show usage
 usage() {
     echo "Steam Deck Charge Scheduler Script"
-    echo "Usage: $0 {set|status|schedule} [value]"
+    echo "Usage: $0 {set|status|schedule|config|reload} [value]"
     echo ""
     echo "Commands:"
     echo "  set <50-100>     Set charge limit to specified percentage"
     echo "  status           Show current status"
     echo "  schedule         Check schedule and apply appropriate charge limit"
+    echo "  config           Show current configuration"
+    echo "  reload           Reload configuration and apply schedule"
     echo ""
     echo "Examples:"
     echo "  $0 set 80        # Set charge limit to 80%"
     echo "  $0 status        # Show status"
     echo "  $0 schedule      # Check and apply schedule"
+    echo "  $0 config        # Show current configuration"
+    echo "  $0 reload        # Reload and apply configuration"
     echo ""
     echo "Crontab example:"
     echo "  */5 * * * * /path/to/charge-scheduler.sh schedule"
@@ -149,6 +169,22 @@ main() {
             get_status
             ;;
         "schedule")
+            check_permissions
+            check_schedule
+            ;;
+        "config")
+            # Show current configuration
+            load_config
+            echo "Current Configuration:"
+            echo "  Mode: $MODE"
+            echo "  Start Time: ${START_HOUR}:${START_MINUTE}"
+            echo "  Duration: ${DURATION_MINUTES} minutes"
+            echo "  Charge Limit: ${CHARGE_LIMIT}%"
+            echo "  Config File: $CONFIG_FILE"
+            ;;
+        "reload")
+            # Reload configuration and apply
+            load_config
             check_permissions
             check_schedule
             ;;

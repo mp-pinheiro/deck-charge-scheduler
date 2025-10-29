@@ -1,18 +1,61 @@
 # Steam Deck Charge Scheduler
 
-A simple bash script and systemd timer for automated battery charge scheduling on Steam Deck using the SteamOS D-Bus API.
+A comprehensive battery charge management solution for Steam Deck with both **standalone script** and **Decky plugin** options. Provides automated charging schedules, manual controls, and GUI configuration for optimal battery health.
 
 ## ✨ Features
 
-- ⚡ **Simple Setup** - No complex Decky plugin or sudo configuration required
+- ⚡ **Dual Installation** - Choose between standalone script or Decky plugin
+- 🎮 **GUI Configuration** - Easy-to-use Decky plugin interface (when installed as plugin)
 - 🕒 **Time-based Charging** - Schedule charging windows for optimal battery health
 - 🔋 **Charge Limiting** - Set custom charge limits (50-100%) to preserve battery
 - 📊 **Automatic Operation** - Runs silently in the background every 5 minutes
 - 📝 **Clean Logging** - Simple log file to track changes and debug issues
+- 🎛️ **Preset Modes** - Quick configurations for Gaming, Daily Use, Battery Health
+- 📱 **Manual Controls** - Immediate charge limit setting when needed
+- 📈 **Real-time Status** - View current charge limits and next scheduled changes
 
-## 🚀 Quick Start
+## 🚀 Installation Options
 
-### 1. Copy the Script
+### Option 1: Decky Plugin (Recommended)
+
+The Decky plugin provides a user-friendly GUI for configuration and monitoring.
+
+#### Prerequisites
+- [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader) installed on your Steam Deck
+- Node.js and pnpm (for building)
+
+#### Build and Install Plugin
+```bash
+# Clone the repository
+git clone https://github.com/fairfruit/deck-charge-scheduler.git
+cd deck-charge-scheduler
+
+# Install dependencies
+pnpm install
+
+# Build the plugin
+pnpm run build
+
+# Deploy the plugin (one-time setup)
+make deploy
+
+# Set up systemd timer (one-time setup)
+make deploy-systemd
+
+# Restart Decky Loader to load the plugin
+```
+
+#### Using the Plugin
+1. Open Decky Loader settings
+2. Navigate to "Deck Charge Scheduler"
+3. Configure your schedule using the GUI
+4. Choose from preset modes or customize your own schedule
+
+### Option 2: Standalone Script
+
+For users who prefer a lightweight command-line approach without Decky Loader.
+
+#### 1. Copy the Script
 ```bash
 # Make script executable
 chmod +x charge-scheduler.sh
@@ -21,7 +64,7 @@ chmod +x charge-scheduler.sh
 ./charge-scheduler.sh set 80
 ```
 
-### 2. Install Systemd Timer
+#### 2. Install Systemd Timer
 ```bash
 # Create user service directory
 mkdir -p ~/.config/systemd/user
@@ -62,7 +105,7 @@ systemctl --user enable charge-scheduler.timer
 systemctl --user start charge-scheduler.timer
 ```
 
-### 3. Verify Installation
+#### 3. Verify Installation
 ```bash
 # Check timer status
 systemctl --user status charge-scheduler.timer
@@ -73,7 +116,23 @@ tail -5 ~/.local/share/charge-scheduler.log
 
 ## 📋 Usage
 
-### Command Line Interface
+### Option 1: Decky Plugin GUI
+
+When installed as a Decky plugin, you can configure everything through the graphical interface:
+
+1. **Status Panel**: View current charge limit and next scheduled change
+2. **Configuration Panel**:
+   - Choose operating mode (Scheduled, Always Full, Always Limited)
+   - Set charging schedule (start time, duration)
+   - Configure charge limits
+   - Use preset configurations (Gaming, Daily Use, Battery Health)
+3. **Manual Control**: Set immediate charge limits
+4. **Log Viewer**: Monitor scheduler activity
+
+### Option 2: Command Line Interface
+
+For standalone script usage:
+
 ```bash
 # Set charge limit
 ./charge-scheduler.sh set <50-100>
@@ -84,20 +143,30 @@ tail -5 ~/.local/share/charge-scheduler.log
 # Apply schedule logic
 ./charge-scheduler.sh schedule
 
+# View current configuration
+./charge-scheduler.sh config
+
+# Reload configuration and apply
+./charge-scheduler.sh reload
+
 # Show help
 ./charge-scheduler.sh help
 ```
 
 ### Configuration
 
-Edit the variables in `charge-scheduler.sh` to customize your schedule:
+#### GUI Configuration (Plugin)
+Use the Decky plugin interface to easily configure all settings without editing files.
+
+#### Manual Configuration (Script)
+Edit the variables in `charge-scheduler.conf` to customize your schedule:
 
 ```bash
 # Operating modes:
 # - "schedule": Time-based charging windows
 # - "always_full": Always charge to 100%
 # - "always_limit": Always limit to configured percentage
-MODE="schedule"
+MODE=schedule
 
 # Schedule configuration (for "schedule" mode)
 START_HOUR=8              # Start time: 8 AM
@@ -131,7 +200,19 @@ CHARGE_LIMIT=80           # Default limit: 80%
 
 ```
 deck-charge-scheduler/
-├── charge-scheduler.sh          # Main script
+├── charge-scheduler.sh          # Main bash script
+├── charge-scheduler.conf        # External configuration file
+├── main.py                      # Decky plugin backend
+├── plugin.json                  # Decky plugin metadata
+├── package.json                 # Node.js dependencies
+├── tsconfig.json                # TypeScript configuration
+├── rollup.config.js             # Build configuration
+├── Makefile                     # Build and deployment automation
+├── src/
+│   ├── index.tsx                # React frontend component
+│   └── types.d.ts               # TypeScript type definitions
+├── dist/                        # Built plugin files (generated)
+├── node_modules/                # Node.js dependencies (generated)
 ├── README.md                    # This file
 └── .gitignore                   # Git ignore rules
 ```
@@ -206,20 +287,60 @@ For different scenarios:
 - **Daily Use**: 80% limit for battery longevity
 - **Storage**: 50% limit for long-term storage
 
-## 🔄 Migration from Decky Plugin
+## 🔧 Development
 
-If you were previously using the Decky plugin:
+### Building the Plugin
+```bash
+# Install dependencies
+make install
 
-1. **Disable the plugin** in Decky Loader settings
-2. **Remove the plugin** files if desired
-3. **Follow the installation steps** above for this script
-4. **Configure your schedule** in the script variables
+# Build for development
+make build
 
-This approach is more reliable than the Decky plugin because:
-- ✅ No dependency on Decky Loader
-- ✅ Works regardless of UI state
-- ✅ Minimal resource usage
-- ✅ Standard Linux system integration
+# Watch mode for development
+make watch
+
+# Deploy plugin for testing
+make deploy
+
+# Verify deployment
+make verify
+```
+
+### Makefile Commands
+```bash
+make help          # Show all available commands
+make dev           # Install + build + deploy
+make full-setup    # Complete setup including systemd
+make clean         # Clean build artifacts
+make undeploy      # Remove deployed plugin
+```
+
+## 🔄 Migration from Standalone Script
+
+If you were previously using the standalone script and want to upgrade to the Decky plugin:
+
+1. **Keep existing systemd timer** - it will continue working
+2. **Deploy the plugin** using `make deploy`
+3. **Restart Decky Loader** to load the new plugin
+4. **Configure via GUI** instead of editing files
+
+## 🔄 Migration from Other Solutions
+
+If you were previously using other charge management solutions:
+
+1. **Disable old solutions** to avoid conflicts
+2. **Install this plugin** using the steps above
+3. **Configure your preferred schedule**
+4. **Verify operation** through logs and status
+
+### Benefits of This Approach
+- ✅ **Dual Interface**: Both GUI and command-line options
+- ✅ **Reliable Backend**: Proven bash script + systemd approach
+- ✅ **Easy Configuration**: No need to edit files manually (when using plugin)
+- ✅ **Standard Integration**: Uses SteamOS D-Bus API officially
+- ✅ **Minimal Resources**: Lightweight and efficient
+- ✅ **Transparent Operation**: Clear logging and status reporting
 
 ## 🤝 Contributing
 
