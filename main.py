@@ -3,78 +3,47 @@ import subprocess
 import asyncio
 import re
 from pathlib import Path
-
-# The decky plugin module is located at decky-loader/plugin
 import decky
 
 class Plugin:
     def __init__(self):
-        # Get the plugin directory
         self.plugin_dir = Path(__file__).parent
         self.script_path = self.plugin_dir / "charge-scheduler.sh"
         self.config_path = self.plugin_dir / "charge-scheduler.conf"
         self.log_path = Path.home() / ".local/share/charge-scheduler.log"
 
-    # Configuration management functions
+    # ---------- helpers ----------
 
-    @decky.callable
-    async def get_config(self) -> dict:
-        """Get current configuration from config file"""
-        try:
-            config = {}
+    def _default_cfg(self) -> dict:
+        return {
+            "MODE": "schedule",
+            "START_HOUR": 8,
+            "START_MINUTE": 0,
+            "DURATION_MINUTES": 60,
+            "CHARGE_LIMIT": 80,
+            "SCHEDULE_DESCRIPTION": "Default configuration",
+        }
 
-            if not self.config_path.exists():
-                return {
-                    "MODE": "schedule",
-                    "START_HOUR": 8,
-                    "START_MINUTE": 0,
-                    "DURATION_MINUTES": 60,
-                    "CHARGE_LIMIT": 80,
-                    "SCHEDULE_DESCRIPTION": "Default configuration"
-                }
+    def _read_cfg(self) -> dict:
+        if not self.config_path.exists():
+            return self._default_cfg()
+        cfg: dict[str, object] = {}
+        with open(self.config_path, "r") as f:
+            for ln in f:
+                ln = ln.strip()
+                if ln and not ln.startswith("#") and "=" in ln:
+                    k, v = ln.split("=", 1)
+                    cfg[k.strip()] = v.strip().strip('"')
+        for k in ["START_HOUR", "START_MINUTE", "DURATION_MINUTES", "CHARGE_LIMIT"]:
+            if k in cfg:
+                try:
+                    cfg[k] = int(cfg[k])  # type: ignore
+                except Exception:
+                    cfg[k] = int(str(cfg[k]).split()[0])  # type: ignore
+        return cfg  # type: ignore
 
-            # Parse config file
-            with open(self.config_path, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith('#') and '=' in line:
-                        key, value = line.split('=', 1)
-                        config[key.strip()] = value.strip().strip('"')
-
-            # Convert numeric values
-            for key in ['START_HOUR', 'START_MINUTE', 'DURATION_MINUTES', 'CHARGE_LIMIT']:
-                if key in config:
-                    try:
-                        config[key] = int(config[key])
-                    except ValueError:
-                        config[key] = int(config[key].split()[0])  # Handle values like "80%"
-
-            return config
-
-        except Exception as e:
-            decky.logger.error(f"Error reading config: {e}")
-            return {}
-
-    @decky.callable
-    async def set_config(self, mode: str, start_hour: int, start_minute: int,
-                        duration: int, charge_limit: int, description: str = "") -> dict:
-        """Update configuration in config file"""
-        try:
-            # Validate inputs
-            if mode not in ["schedule", "always_full", "always_limit"]:
-                return {"success": False, "error": "Invalid mode"}
-
-            if not (0 <= start_hour <= 23) or not (0 <= start_minute <= 59):
-                return {"success": False, "error": "Invalid time values"}
-
-            if not (5 <= duration <= 480):  # 5 minutes to 8 hours
-                return {"success": False, "error": "Duration must be between 5 and 480 minutes"}
-
-            if not (50 <= charge_limit <= 100):
-                return {"success": False, "error": "Charge limit must be between 50 and 100"}
-
-            # Create new config content
-            config_content = f"""# Steam Deck Charge Scheduler Configuration
+    def _write_cfg(self, mode: str, sh: int, sm: int, dur: int, limit: int, desc: str) -> None:
+        text = f"""# Steam Deck Charge Scheduler Configuration
 # This file is automatically managed by the Decky plugin GUI
 # Manual editing is not recommended
 
@@ -82,202 +51,176 @@ class Plugin:
 MODE={mode}
 
 # Schedule configuration (for "schedule" mode)
-START_HOUR={start_hour}
-START_MINUTE={start_minute}
-DURATION_MINUTES={duration}
+START_HOUR={sh}
+START_MINUTE={sm}
+DURATION_MINUTES={dur}
 
 # Default charge limit (50-100%)
-CHARGE_LIMIT={charge_limit}
+CHARGE_LIMIT={limit}
 
 # Schedule description (optional, for display purposes)
-SCHEDULE_DESCRIPTION="{description}"
+SCHEDULE_DESCRIPTION="{desc}"
 """
+        with open(self.config_path, "w") as f:
+            f.write(text)
 
-            # Write to config file
-            with open(self.config_path, 'w') as f:
-                f.write(config_content)
+    async def _tail_logs(self, n: int) -> list[str]:
+        if not self.log_path.exists():
+            return []
+        with open(self.log_path, "r") as f:
+            lines = f.readlines()
+        return [ln.strip() for ln in lines[-n:]]
 
-            decky.logger.info(f"Configuration updated: {mode}, {start_hour}:{start_minute}, {duration}min, {charge_limit}%")
-
-            return {"success": True, "message": "Configuration updated successfully"}
-
-        except Exception as e:
-            decky.logger.error(f"Error setting config: {e}")
-            return {"success": False, "error": str(e)}
-
-    # Script execution functions
+    # ---------- callables ----------
 
     @decky.callable
-    async def set_limit_immediate(self, limit: int) -> dict:
-        """Set charge limit immediately using the script"""
+    async def get_config(self) -> dict:
+        decky.logger.info("🔄 [get_config] Request received")
         try:
-            if not (50 <= limit <= 100):
-                return {"success": False, "error": "Charge limit must be between 50 and 100"}
-
-            result = subprocess.run(
-                [str(self.script_path), "set", str(limit)],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
-
-            if result.returncode == 0:
-                decky.logger.info(f"Charge limit set to {limit}%")
-                return {"success": True, "message": f"Charge limit set to {limit}%"}
-            else:
-                return {"success": False, "error": result.stderr}
-
-        except subprocess.TimeoutExpired:
-            return {"success": False, "error": "Operation timed out"}
+            config = self._read_cfg()
+            decky.logger.info(f"✅ [get_config] Returning config: {config}")
+            return config
         except Exception as e:
-            decky.logger.error(f"Error setting charge limit: {e}")
+            decky.logger.error(f"❌ [get_config] Error: {e}")
+            fallback = self._default_cfg()
+            fallback["error"] = str(e)
+            return fallback
+
+    @decky.callable
+    async def set_config(
+        self,
+        mode: str,
+        start_hour: int,
+        start_minute: int,
+        duration: int,
+        charge_limit: int,
+        description: str = "",
+    ) -> dict:
+        decky.logger.info(f"💾 [set_config] Request: mode={mode}, time={start_hour}:{start_minute}, duration={duration}, limit={charge_limit}%")
+
+        try:
+            if mode not in ["schedule", "always_full", "always_limit"]:
+                error_msg = "Invalid mode"
+                decky.logger.error(f"❌ [set_config] {error_msg}: {mode}")
+                return {"success": False, "error": error_msg}
+            if not (0 <= start_hour <= 23) or not (0 <= start_minute <= 59):
+                error_msg = "Invalid time values"
+                decky.logger.error(f"❌ [set_config] {error_msg}: {start_hour}:{start_minute}")
+                return {"success": False, "error": error_msg}
+            if not (5 <= duration <= 480):
+                error_msg = "Duration must be 5–480 minutes"
+                decky.logger.error(f"❌ [set_config] {error_msg}: {duration}")
+                return {"success": False, "error": error_msg}
+            if not (50 <= charge_limit <= 100):
+                error_msg = "Charge limit must be 50–100"
+                decky.logger.error(f"❌ [set_config] {error_msg}: {charge_limit}")
+                return {"success": False, "error": error_msg}
+
+            try:
+                os.chmod(self.script_path, 0o755)
+                decky.logger.info("🔧 [set_config] Script permissions set")
+            except Exception as e:
+                decky.logger.warning(f"⚠️ [set_config] Could not set script permissions: {e}")
+
+            self._write_cfg(mode, start_hour, start_minute, duration, charge_limit, description)
+            decky.logger.info(f"✅ [set_config] Config saved successfully: {mode} {start_hour}:{start_minute} {duration}m {charge_limit}%")
+            return {"success": True, "message": "Configuration saved successfully"}
+        except Exception as e:
+            decky.logger.error(f"❌ [set_config] Exception: {e}")
             return {"success": False, "error": str(e)}
 
     @decky.callable
     async def get_status(self) -> dict:
-        """Get current scheduler status"""
+        decky.logger.info("🔄 [get_status] Request received")
         try:
-            # Get current configuration
-            config = await self.get_config()
+            cfg = self._read_cfg()
+            decky.logger.info(f"📖 [get_status] Config loaded: {cfg}")
 
-            # Get recent logs
-            logs = await self.get_logs(20)  # Get last 20 lines
+            logs = await self._tail_logs(20)
+            decky.logger.info(f"📋 [get_status] Found {len(logs)} log entries")
 
-            # Parse last log entry for current status
-            current_limit = "Unknown"
+            current = "Unknown"
             if logs:
                 last_log = logs[-1]
-                # Try to extract charge limit from log
-                match = re.search(r'Successfully set charge limit to (\d+)%', last_log)
-                if match:
-                    current_limit = f"{match.group(1)}%"
+                decky.logger.info(f"📝 [get_status] Last log: {last_log}")
+                m = re.search(r"Successfully set charge limit to (\d+)%", last_log)
+                if m:
+                    current = f"{m.group(1)}%"
+                    decky.logger.info(f"✅ [get_status] Parsed current limit from log: {current}")
 
-            # Calculate next scheduled change
-            mode = config.get("MODE", "schedule")
+            if current == "Unknown":
+                current = "100%" if cfg.get("MODE") == "always_full" else f"{cfg.get('CHARGE_LIMIT', 80)}%"
+                decky.logger.info(f"🔮 [get_status] Using predicted current limit: {current}")
+
+            mode = cfg.get("MODE", "schedule")
             if mode == "schedule":
-                start_hour = config.get("START_HOUR", 8)
-                start_minute = config.get("START_MINUTE", 0)
-                duration = config.get("DURATION_MINUTES", 60)
-
                 from datetime import datetime, time as dt_time, timedelta
+                sh = int(cfg.get("START_HOUR", 8))
+                sm = int(cfg.get("START_MINUTE", 0))
+                dur = int(cfg.get("DURATION_MINUTES", 60))
                 now = datetime.now()
-                today = now.date()
-
-                start_time = datetime.combine(today, dt_time(start_hour, start_minute))
-                end_time = start_time + timedelta(minutes=duration)
-
-                if now < start_time:
-                    next_change = f"Full charge at {start_time.strftime('%H:%M')}"
-                elif now < end_time:
-                    next_change = f"Limited charge at {end_time.strftime('%H:%M')}"
+                start = datetime.combine(now.date(), dt_time(sh, sm))
+                end = start + timedelta(minutes=dur)
+                if now < start:
+                    next_change = f"Full charge at {start.strftime('%H:%M')}"
+                elif now < end:
+                    next_change = f"Limited charge at {end.strftime('%H:%M')}"
                 else:
-                    tomorrow_start = start_time + timedelta(days=1)
-                    next_change = f"Full charge at {tomorrow_start.strftime('%H:%M')}"
+                    next_change = f"Full charge at {(start + timedelta(days=1)).strftime('%H:%M')}"
             elif mode == "always_full":
                 next_change = "Always charging to 100%"
-            else:  # always_limit
-                limit = config.get("CHARGE_LIMIT", 80)
-                next_change = f"Always limited to {limit}%"
+            else:
+                next_change = f"Always limited to {cfg.get('CHARGE_LIMIT', 80)}%"
 
             return {
-                "current_limit": current_limit,
+                "current_limit": current,
                 "next_change": next_change,
-                "config": config,
+                "config": cfg,
                 "script_path": str(self.script_path),
-                "config_file_exists": self.config_path.exists()
+                "config_file_exists": self.config_path.exists(),
             }
-
         except Exception as e:
-            decky.logger.error(f"Error getting status: {e}")
-            return {"error": str(e)}
-
-    @decky.callable
-    async def get_logs(self, lines: int = 50) -> list:
-        """Get recent log entries"""
-        try:
-            if not self.log_path.exists():
-                return []
-
-            # Read last N lines from log file
-            with open(self.log_path, 'r') as f:
-                all_lines = f.readlines()
-                return [line.strip() for line in all_lines[-lines:]]
-
-        except Exception as e:
-            decky.logger.error(f"Error reading logs: {e}")
-            return []
+            decky.logger.error(f"get_status error: {e}")
+            cfg = self._read_cfg()
+            return {
+                "current_limit": f"{cfg.get('CHARGE_LIMIT', 80)}%",
+                "next_change": "Schedule active" if cfg.get("MODE") == "schedule" else "—",
+                "config": cfg,
+                "script_path": str(self.script_path),
+                "config_file_exists": self.config_path.exists(),
+                "error": str(e),
+            }
 
     @decky.callable
     async def apply_schedule_now(self) -> dict:
-        """Apply schedule immediately"""
         try:
             result = subprocess.run(
                 [str(self.script_path), "reload"],
-                capture_output=True,
-                text=True,
-                timeout=30
+                capture_output=True, text=True, timeout=30
             )
-
             if result.returncode == 0:
-                decky.logger.info("Schedule applied manually")
-                return {"success": True, "message": "Schedule applied successfully"}
-            else:
-                return {"success": False, "error": result.stderr}
-
+                decky.logger.info("Schedule applied")
+                return {"success": True}
+            return {"success": False, "error": result.stderr or result.stdout}
         except subprocess.TimeoutExpired:
             return {"success": False, "error": "Operation timed out"}
         except Exception as e:
-            decky.logger.error(f"Error applying schedule: {e}")
+            decky.logger.error(f"apply_schedule_now error: {e}")
             return {"success": False, "error": str(e)}
 
-    async def test_script_access(self) -> dict:
-        """Test if the script is accessible and working"""
-        try:
-            # Test script existence and permissions
-            if not self.script_path.exists():
-                return {"success": False, "error": "Script file not found"}
-
-            if not os.access(self.script_path, os.X_OK):
-                return {"success": False, "error": "Script is not executable"}
-
-            # Test script functionality with config command
-            result = subprocess.run(
-                [str(self.script_path), "config"],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-
-            if result.returncode == 0:
-                return {"success": True, "message": "Script is accessible and working"}
-            else:
-                return {"success": False, "error": result.stderr}
-
-        except subprocess.TimeoutExpired:
-            return {"success": False, "error": "Script test timed out"}
-        except Exception as e:
-            decky.logger.error(f"Error testing script: {e}")
-            return {"success": False, "error": str(e)}
-
-    # Lifecycle methods
-
+    # ---------- lifecycle ----------
     async def _main(self):
-        decky.logger.info("Deck Charge Scheduler Plugin started")
-        self.loop = asyncio.get_event_loop()
-
-        # Test script access on startup
-        test_result = await self.test_script_access()
-        if not test_result["success"]:
-            decky.logger.error(f"Script access test failed: {test_result['error']}")
-        else:
-            decky.logger.info("Script access test passed")
+        decky.logger.info("Charge Scheduler backend started")
+        try:
+            os.chmod(self.script_path, 0o755)
+        except Exception:
+            pass
 
     async def _unload(self):
-        decky.logger.info("Deck Charge Scheduler Plugin stopped")
+        decky.logger.info("Charge Scheduler backend stopped")
 
     async def _uninstall(self):
-        decky.logger.info("Deck Charge Scheduler Plugin uninstalled")
+        decky.logger.info("Charge Scheduler backend uninstalled")
 
     async def _migration(self):
-        decky.logger.info("Running plugin migrations")
-        # No migrations needed for now
+        decky.logger.info("Charge Scheduler migration: none")
