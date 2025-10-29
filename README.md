@@ -24,25 +24,23 @@ The Decky plugin provides a user-friendly GUI for configuration and monitoring.
 - [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader) installed on your Steam Deck
 - Node.js and pnpm (for building)
 
-#### Build and Install Plugin
+#### Installation Options
+
+**Option A: Direct Installation on Steam Deck**
 ```bash
-# Clone the repository
 git clone https://github.com/fairfruit/deck-charge-scheduler.git
 cd deck-charge-scheduler
+make full-setup    # Install + build + deploy + systemd setup
+```
 
-# Install dependencies
-pnpm install
-
-# Build the plugin
-pnpm run build
-
-# Deploy the plugin (one-time setup)
-make deploy
-
-# Set up systemd timer (one-time setup)
-make deploy-systemd
-
-# Restart Decky Loader to load the plugin
+**Option B: Remote Development (Recommended)**
+```bash
+git clone https://github.com/fairfruit/deck-charge-scheduler.git
+cd deck-charge-scheduler
+cp .env.example .env
+# Edit .env with Steam Deck connection details
+ssh-copy-id deck@steamdeck.lan
+make full-setup
 ```
 
 #### Using the Plugin
@@ -200,20 +198,33 @@ CHARGE_LIMIT=80           # Default limit: 80%
 
 ```
 deck-charge-scheduler/
-├── charge-scheduler.sh          # Main bash script
-├── charge-scheduler.conf        # External configuration file
-├── main.py                      # Decky plugin backend
-├── plugin.json                  # Decky plugin metadata
-├── package.json                 # Node.js dependencies
-├── tsconfig.json                # TypeScript configuration
-├── rollup.config.js             # Build configuration
-├── Makefile                     # Build and deployment automation
-├── src/
-│   ├── index.tsx                # React frontend component
-│   └── types.d.ts               # TypeScript type definitions
-├── dist/                        # Built plugin files (generated)
-├── node_modules/                # Node.js dependencies (generated)
-├── README.md                    # This file
+├── Core Files
+│   ├── charge-scheduler.sh      # Main bash script
+│   ├── charge-scheduler.conf    # External configuration file
+│   ├── main.py                  # Decky plugin backend
+│   └── plugin.json              # Decky plugin metadata
+├── Development Files
+│   ├── .env                     # Development environment (gitignored)
+│   ├── .env.example             # Environment template
+│   ├── CLAUDE.md                # Remote development documentation
+│   ├── Makefile                 # Remote deployment automation
+│   └── scripts/
+│       ├── debug-cef.sh         # CEF debugging helper
+│       └── verify-deployment.sh # Deployment verification
+├── Frontend Development
+│   ├── package.json             # Node.js dependencies
+│   ├── tsconfig.json            # TypeScript configuration
+│   ├── rollup.config.js         # Build configuration
+│   └── src/
+│       ├── index.tsx            # React frontend component
+│       └── types.d.ts           # TypeScript type definitions
+├── Generated Files
+│   ├── dist/                    # Built plugin files (generated)
+│   └── node_modules/            # Node.js dependencies (generated)
+├── Documentation
+│   ├── README.md                # This file
+│   ├── CHANGELOG.md             # Version history
+│   └── docs/                    # Additional documentation
 └── .gitignore                   # Git ignore rules
 ```
 
@@ -228,6 +239,50 @@ deck-charge-scheduler/
 ```
 
 ## 🛠️ Troubleshooting
+
+### Remote Development Issues
+
+**SSH Connection Failed**
+```bash
+# Test SSH connection
+ssh deck@steamdeck.lan
+
+# Check network connectivity
+ping steamdeck.lan
+
+# Verify SSH is enabled on Steam Deck (Settings → Internet → SSH)
+```
+
+**Deployment Permission Errors**
+```bash
+# Check DECK_PASSWORD in .env file
+cat .env | grep DECK_PASSWORD
+
+# Verify sudo access on Steam Deck
+ssh deck@steamdeck.lan "sudo whoami"
+```
+
+**CEF Debugging Not Working**
+```bash
+# Check CEF debugging port
+nc -z steamdeck.lan 8081
+
+# Verify CEF debugging is enabled in .env
+grep ENABLE_CEF_DEBUGGING .env
+
+# Manual debugging setup
+./scripts/debug-cef.sh setup
+```
+
+**Build Errors**
+```bash
+# Install dependencies
+make install
+
+# Clean and rebuild
+make clean
+make build
+```
 
 ### Common Issues
 
@@ -289,31 +344,46 @@ For different scenarios:
 
 ## 🔧 Development
 
-### Building the Plugin
+This project supports **remote development** from a PC to a Steam Deck with automatic deployment and CEF debugging.
+
+### Quick Setup
 ```bash
-# Install dependencies
-make install
+# Clone and configure
+git clone https://github.com/fairfruit/deck-charge-scheduler.git
+cd deck-charge-scheduler
+cp .env.example .env
+# Edit .env with your Steam Deck details (DECK_HOST, DECK_USER, DECK_PASSWORD)
 
-# Build for development
-make build
+# Set up SSH key authentication (one-time)
+ssh-copy-id deck@steamdeck.lan
 
-# Watch mode for development
-make watch
-
-# Deploy plugin for testing
-make deploy
-
-# Verify deployment
-make verify
+# Full setup and deployment
+make full-setup
 ```
 
-### Makefile Commands
+### Development Commands
 ```bash
-make help          # Show all available commands
-make dev           # Install + build + deploy
-make full-setup    # Complete setup including systemd
-make clean         # Clean build artifacts
-make undeploy      # Remove deployed plugin
+make deploy        # Build and deploy to Steam Deck
+make watch         # Development with hot reload
+make debug-cef     # Set up CEF debugging (Chrome DevTools at http://steamdeck.lan:8081)
+make verify-full   # Comprehensive deployment verification
+make help          # Show all commands
+```
+
+### Environment Configuration (.env)
+```bash
+DECK_HOST=steamdeck.lan
+DECK_USER=deck
+DECK_PASSWORD=your_password
+ENABLE_CEF_DEBUGGING=true
+CEF_DEBUG_PORT=8081
+BACKUP_BEFORE_DEPLOY=true
+```
+
+### Development Scripts
+```bash
+./scripts/debug-cef.sh setup     # CEF debugging helper
+./scripts/verify-deployment.sh   # Deployment verification
 ```
 
 ## 🔄 Migration from Standalone Script
