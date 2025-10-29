@@ -1,5 +1,6 @@
-# Decky Loader submodule
+# Submodules
 decky-loader/
+decky-plugin-template/
 
 # Dependencies
 node_modules/
