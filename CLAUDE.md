@@ -106,45 +106,84 @@ make undeploy
 make help
 ```
 
-### Debugging
+### Live Debugging with Playwright MCP
 
-#### Frontend Debugging (React)
-1. **Enable CEF debugging** in `.env`:
-   ```bash
-   ENABLE_CEF_DEBUGGING=true
-   CEF_DEBUG_PORT=8081
-   ```
+This is the **standard debugging process** for live interaction and testing of the Decky plugin.
 
-2. **Deploy plugin with debugging enabled:**
-   ```bash
-   make deploy
-   ```
+#### Prerequisites
+- CEF debugging enabled in `.env`: `ENABLE_CEF_DEBUGGING=true`
+- Plugin deployed: `make deploy`
+- Playwright MCP tool available
 
-3. **Connect Chrome DevTools:**
-   - Open Chrome/Chromium
-   - Navigate to `chrome://inspect`
-   - Click "Configure..." and add `steamdeck:8081`
-   - Look for "SharedJSContext" under "Remote Target"
-   - Click "inspect" to open DevTools
+#### Debugging Process
+Use the Playwright MCP tool to connect to `http://steamdeck:8081/`:
 
-4. **Console Logging:**
+1. **Open CEF Debugging Interface**
    ```javascript
-   // React components
-   console.log('Frontend debug:', data);
-
-   // Access SharedJSContext for plugin state
-   window.DeckyPlugin?.call('get_status');
+   // Using Playwright MCP
+   mcp__playwright__browser_navigate({ url: "http://steamdeck:8081/" })
    ```
+
+2. **Open Essential Debugging Tabs**
+   ```javascript
+   // QuickAccess_uid6 - Main plugin menu
+   // Navigate to QuickAccess tab for primary plugin interface
+   mcp__playwright__browser_click({
+     element: "QuickAccess_uid6 link",
+     ref: "quickaccess-link"
+   })
+
+   // Steam Big Picture Mode - Plugin sub-menus and dropdowns
+   // Navigate for testing dropdown selections and plugin interactions
+   mcp__playwright__browser_click({
+     element: "Steam Big Picture Mode link",
+     ref: "bigpicture-link"
+   })
+
+   // SharedJSContext - Console access
+   // Navigate for JavaScript console debugging and API calls
+   mcp__playwright__browser_click({
+     element: "SharedJSContext link",
+     ref: "console-link"
+   })
+   ```
+
+3. **Live Testing and Interaction**
+   ```javascript
+   // In SharedJSContext console, test plugin API calls
+   window.DeckyPlugin?.call('get_config')
+   window.DeckyPlugin?.call('get_status')
+   window.DeckyPlugin?.call('set_config', 'schedule', 8, 0, 60, 80, 'test schedule')
+
+   // Test React component interactions in main plugin interface
+   // Interact with dropdowns, sliders, and buttons in QuickAccess tab
+   ```
+
+#### Testing Workflow
+1. **Main Plugin Menu** (QuickAccess_uid6):
+   - Test React component rendering
+   - Verify status display
+   - Test configuration controls
+
+2. **Plugin Sub-menus** (Steam Big Picture Mode):
+   - Test dropdown selections
+   - Verify menu navigation
+   - Test mode switching
+
+3. **Console Debugging** (SharedJSContext):
+   - Test backend API calls
+   - Monitor JavaScript errors
+   - Verify frontend-backend communication
 
 #### Backend Debugging (Python)
-Backend logs are available through Decky's logging system:
+For backend issues, check Steam Deck logs:
 
 ```bash
-# View logs on Steam Deck
-journalctl --user -u decky-loader -f
+# View Decky Loader logs on Steam Deck
+ssh deck@steamdeck "journalctl --user -u decky-loader -f"
 
-# Or check plugin logs
-tail -f ~/.local/share/decky/logs/plugin_loader.log
+# Check plugin-specific logs
+ssh deck@steamdeck "tail -f ~/.local/share/decky/logs/plugin_loader.log"
 ```
 
 Python logging from `main.py`:
