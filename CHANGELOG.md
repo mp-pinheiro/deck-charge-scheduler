@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2024-10-29
+
+### Added
+- **Remote Development Setup**: Complete support for developing on PC and deploying to Steam Deck
+- **Environment Configuration**: `.env` file support for connection settings and credentials
+- **Remote Deployment**: `make deploy` now deploys to remote Steam Deck via SSH/SCP
+- **CEF Debugging Integration**: Remote debugging support via Chrome DevTools at `http://steamdeck:8081`
+- **Development Scripts**: Helper scripts for CEF debugging and deployment verification
+- **Comprehensive Documentation**: CLAUDE.md with detailed remote development workflow
+- **SSH Authentication**: Support for both password and SSH key authentication
+- **Backup System**: Automatic backup creation before deployment (configurable)
+- **Connection Verification**: Pre-flight checks for network connectivity and SSH access
+- **Enhanced Makefile**: New targets `debug-cef` and `verify-full` for development workflow
+
+### Changed
+- **Deployment Architecture**: Replaced local deployment with remote Steam Deck deployment
+- **Development Workflow**: Streamlined for remote PC to Steam Deck development
+- **Configuration Management**: Environment-based configuration for deployment settings
+
+### Improved
+- **Developer Experience**: One-command deployment with automatic debugging setup
+- **Error Handling**: Better error messages and connection diagnostics
+- **Documentation**: Comprehensive setup and troubleshooting guides
+- **Verification Tools**: Automated deployment verification and health checks
+
 ## [1.0.0] - 2024-10-29
 
 ### Added
