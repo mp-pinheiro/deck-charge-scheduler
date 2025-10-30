@@ -7,7 +7,6 @@ import {
 import {
     PanelSection,
     PanelSectionRow,
-    ButtonItem,
     DropdownItem,
     SliderField,
     showModal,
@@ -71,8 +70,6 @@ function Content() {
 
     const [uiConfig, setUiConfig] = useState<ChargeConfig>(globalConfig);
     const [status, setStatus] = useState<ChargeStatus | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [applying, setApplying] = useState(false);
     const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
     const [limitLocal, setLimitLocal] = useState<number>(globalConfig.charge_limit);
 
@@ -84,7 +81,7 @@ function Content() {
         () => [
             { data: "schedule", label: "Follow Schedule" },
             { data: "always_full", label: "Always Full Power" },
-            { data: "always_limit", label: "Always Limit to 80%" },
+            { data: "always_limit", label: "Always Limit" },
         ],
         []
     );
@@ -193,7 +190,6 @@ function Content() {
     const commitConfig = async (next: ChargeConfig) => {
         console.log("💾 [commitConfig] Starting config save:", next);
         setUiConfig(next); // optimistic
-        setLoading(true);
         try {
             const desc = `Schedule: ${hhmm(next.start_hour, next.start_minute)} for ${next.duration_minutes} minutes`;
             console.log("📡 [commitConfig] Calling set_config() with:", next.mode, next.start_hour, next.start_minute, next.duration_minutes, next.charge_limit, desc);
@@ -222,9 +218,14 @@ function Content() {
             } else {
                 console.log("✅ [commitConfig] Save successful");
                 globalConfig = next; // Update global state
+
+                // Auto-apply the configuration
+                console.log("🔄 [commitConfig] Auto-applying configuration...");
+                await apply_schedule_now();
+                console.log("✅ [commitConfig] Configuration applied successfully");
             }
 
-            console.log("🔄 [commitConfig] Refreshing status after save...");
+            console.log("🔄 [commitConfig] Refreshing status after apply...");
             await loadStatus();
         } catch (e) {
             console.error("❌ [commitConfig] Exception caught:", e);
@@ -235,46 +236,11 @@ function Content() {
                 </div>
             );
         } finally {
-            setLoading(false);
             console.log("🏁 [commitConfig] Config save complete");
         }
     };
 
-    const applyNow = async () => {
-        setApplying(true);
-        try {
-            console.log("🔄 [applyNow] Applying schedule...");
-            const res = await apply_schedule_now();
-            console.log("📥 [applyNow] apply_schedule_now() response:", res);
-
-            if (!res?.success) {
-                console.error("❌ [applyNow] Apply failed:", res?.error);
-                showModal(
-                    <div style={{ padding: 16 }}>
-                        <h3>Apply failed</h3>
-                        <div style={{ marginTop: 8, whiteSpace: "pre-wrap" }}>
-                            {String(res?.error ?? "Unknown error")}
-                        </div>
-                    </div>
-                );
-            } else {
-                console.log("✅ [applyNow] Apply successful");
-            }
-
-            await loadStatus();
-        } catch (e) {
-            console.error("❌ [applyNow] Exception caught:", e);
-            showModal(
-                <div style={{ padding: 16 }}>
-                    <h3>Apply error</h3>
-                    <div style={{ marginTop: 8, whiteSpace: "pre-wrap" }}>{String(e)}</div>
-                </div>
-            );
-        } finally {
-            setApplying(false);
-        }
-    };
-
+  
     // Debounced slider save - WORKING PATTERN
     const commitLimit = useMemo(
         () =>
@@ -342,7 +308,18 @@ function Content() {
     };
 
     return (
-        <div>
+        <div style={{ maxHeight: "80vh", overflowY: "auto" }}>
+            {/* Info */}
+            <PanelSection title="Information">
+                <PanelSectionRow>
+                    <div style={{ fontSize: 13, lineHeight: 1.4 }}>
+                        <strong>Smart Charge Scheduler</strong><br />
+                        Manage your Steam Deck's battery charging to prolong battery health.
+                        Set schedules for when charging should be limited, or use always-on modes.
+                    </div>
+                </PanelSectionRow>
+            </PanelSection>
+
             {/* Status */}
             <PanelSection title="Status">
                 <PanelSectionRow>
@@ -404,14 +381,6 @@ function Content() {
                             />
                         </div>
                     </PanelSectionRow>
-
-                    <PanelSectionRow>
-                        <div onClick={(e) => e.stopPropagation()} style={{ display: "contents" }}>
-                            <ButtonItem layout="below" onClick={applyNow} disabled={applying || loading}>
-                                {applying ? "Applying..." : "Apply Schedule Now"}
-                            </ButtonItem>
-                        </div>
-                    </PanelSectionRow>
                 </PanelSection>
             )}
 
@@ -440,17 +409,6 @@ function Content() {
                     </PanelSectionRow>
                 </PanelSection>
             )}
-
-            {/* Info */}
-            <PanelSection title="Information">
-                <PanelSectionRow>
-                    <div style={{ fontSize: 13, lineHeight: 1.4 }}>
-                        <strong>Smart Charge Scheduler</strong><br />
-                        Manage your Steam Deck's battery charging to prolong battery health.
-                        Set schedules for when charging should be limited, or use always-on modes.
-                    </div>
-                </PanelSectionRow>
-            </PanelSection>
         </div>
     );
 }

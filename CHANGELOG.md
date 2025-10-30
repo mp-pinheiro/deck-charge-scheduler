@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.3] - 2024-10-30
+
+### Changed
+- **Auto-apply Configuration**: Removed manual "Apply Schedule Now" button - configurations now apply automatically after saving
+- **Information Panel Position**: Moved Information section to top of interface for better visibility
+- **Mode Display**: Cleaned up mode dropdown text to show "Always Limit" instead of "Always Limit to 80%"
+- **Navigation Improvements**: Added scroll container with 80vh max height for better Steam Deck controller navigation
+
+### Fixed
+- **Controller Scrolling**: Implemented proper D-pad scrolling with overflow handling for Steam Deck controllers
+- **UI Layout**: Reorganized panel sections for improved user experience
+
+### Removed
+- **Manual Apply Button**: Eliminated redundant "Apply Schedule Now" button functionality
+- **Unused Code**: Cleaned up ButtonItem import and unused state variables (loading, applying, applyNow function)
+
 ## [1.1.2] - 2024-10-30
 
 ### Fixed
