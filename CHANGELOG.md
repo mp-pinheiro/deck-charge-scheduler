@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.6] - 2024-10-30
+
+### Changed
+- **README.md Streamlining**: Reduced documentation from 365 to 79 lines (78% reduction)
+- **Documentation Focus**: Shifted from developer-focused to end-user-focused content
+- **Code Organization**: Cleaned up Python imports in main.py
+
+### Removed
+- **Development Artifacts**: Eliminated CEF debugging instructions and remote development setup
+- **Local Network Assumptions**: Removed all steamdeck.lan references from documentation
+- **Troubleshooting Sections**: Removed complex troubleshooting and development process details
+- **Technical Jargon**: Simplified installation and usage instructions for end users
+- **Emojis and Casual Language**: Professional tone throughout documentation
+
+### Improved
+- **User Experience**: Clean, professional README focused only on what users need
+- **Installation Process**: Streamlined to essential steps without development complexity
+- **Documentation Clarity**: Action-oriented instructions without unnecessary technical details
+
 ## [1.1.5] - 2024-10-30
 
 ### Changed
