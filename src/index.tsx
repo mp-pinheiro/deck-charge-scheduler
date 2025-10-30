@@ -43,6 +43,7 @@ const get_config = callable<any[], any>("get_config");
 const set_config = callable<any[], any>("set_config");
 const get_status = callable<any[], any>("get_status");
 const apply_schedule_now = callable<any[], any>("apply_schedule_now");
+const get_scheduler_status = callable<any[], any>("get_scheduler_status");
 
 // -------- Utils --------
 const debounce = <T extends (...args: any[]) => any>(fn: T, wait: number): T => {
@@ -72,6 +73,7 @@ function Content() {
     const [status, setStatus] = useState<ChargeStatus | null>(null);
     const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
     const [limitLocal, setLimitLocal] = useState<number>(globalConfig.charge_limit);
+    const [schedulerStatus, setSchedulerStatus] = useState<any>(null);
 
     // Sync slider with global state
     useEffect(() => setLimitLocal(uiConfig.charge_limit), [uiConfig.charge_limit]);
@@ -109,22 +111,7 @@ function Content() {
         []
     );
 
-    // Eager fallback so Status never blanks
-    const setFallbackStatus = (cfg: ChargeConfig) => {
-        setStatus({
-            current_limit: cfg.mode === "always_full" ? "100%" : `${cfg.charge_limit}%`,
-            next_change:
-                cfg.mode === "always_full"
-                    ? "Always charging to 100%"
-                    : cfg.mode === "always_limit"
-                        ? `Always limited to ${cfg.charge_limit}%`
-                        : "Schedule active",
-            config: cfg,
-            script_path: "",
-            config_file_exists: false,
-        });
-    };
-
+    
     // Initial load
     useEffect(() => {
         (async () => {
@@ -133,21 +120,24 @@ function Content() {
                 const res = await get_config();
                 console.log("📥 [init] Backend response:", res);
 
+                // FAIL LOUDLY - Don't provide defaults when backend config is missing
+                if (!res || res.MODE === undefined || res.START_HOUR === undefined || res.START_MINUTE === undefined || res.DURATION_MINUTES === undefined || res.CHARGE_LIMIT === undefined) {
+                    throw new Error("Backend returned incomplete or missing configuration");
+                }
+
                 const cfg: ChargeConfig = {
-                    mode: res?.MODE ?? "schedule",
-                    start_hour: res?.START_HOUR ?? 8,
-                    start_minute: res?.START_MINUTE ?? 0,
-                    duration_minutes: res?.DURATION_MINUTES ?? 60,
-                    charge_limit: res?.CHARGE_LIMIT ?? 80,
+                    mode: res.MODE,
+                    start_hour: res.START_HOUR,
+                    start_minute: res.START_MINUTE,
+                    duration_minutes: res.DURATION_MINUTES,
+                    charge_limit: res.CHARGE_LIMIT,
                 };
 
                 globalConfig = cfg; // Update global state
                 setUiConfig(cfg);
-                setFallbackStatus(cfg);
                 console.log("✅ [init] Config loaded and set:", cfg);
             } catch (e) {
                 console.error("❌ [init] Failed to load config:", e);
-                setFallbackStatus(uiConfig);
                 showModal(
                     <div style={{ padding: 16 }}>
                         <h3>Failed to load config</h3>
@@ -163,6 +153,18 @@ function Content() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    const loadSchedulerStatus = async () => {
+        try {
+            const res = await get_scheduler_status();
+            console.log("📥 [loadSchedulerStatus] Response:", res);
+            setSchedulerStatus(res);
+        } catch (error) {
+            console.error("❌ [loadSchedulerStatus] Exception caught:", error);
+            // FAIL LOUDLY - Let scheduler status be empty to show backend failure
+            setSchedulerStatus(null);
+        }
+    };
+
     const loadStatus = async () => {
         console.log("🔄 [loadStatus] Starting status update...");
         try {
@@ -175,15 +177,20 @@ function Content() {
                 setStatus(res);
             } else {
                 console.warn("⚠️ [loadStatus] Invalid response or error:", res);
-                setFallbackStatus(uiConfig);
+                // FAIL LOUDLY - Let status be empty to show backend failure
+                setStatus(null);
             }
         } catch (error) {
             console.error("❌ [loadStatus] Exception caught:", error);
-            setFallbackStatus(uiConfig);
+            // FAIL LOUDLY - Let status be empty to show backend failure
+            setStatus(null);
         } finally {
             setLastUpdate(new Date());
             console.log("🏁 [loadStatus] Status update complete");
         }
+
+        // Also load scheduler status
+        await loadSchedulerStatus();
     };
 
     // Persist config - WORKING PATTERN
@@ -326,14 +333,31 @@ function Content() {
                     <div style={{ display: "flex", alignItems: "center", padding: "10px 0" }}>
                         <FaBolt style={{ marginRight: 8, color: "#4a9eff" }} />
                         <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: "bold" }}>{status?.next_change ?? "—"}</div>
+                            <div style={{ fontWeight: "bold" }}>{status?.next_change || "ERROR: Status not available"}</div>
                             <div style={{ fontSize: 12, color: "#999" }}>
-                                Current limit: {status?.current_limit ?? `${uiConfig.charge_limit}%`}
+                                Current limit: {status?.current_limit || "ERROR: Status not available"}
                                 {lastUpdate && (
                                     <span style={{ marginLeft: 10, fontSize: 10 }}>
                                         (Updated: {lastUpdate.toLocaleTimeString()})
                                     </span>
                                 )}
+                            </div>
+                        </div>
+                    </div>
+                </PanelSectionRow>
+                <PanelSectionRow>
+                    <div style={{ display: "flex", alignItems: "center", padding: "10px 0" }}>
+                        <div style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: "50%",
+                            marginRight: 8,
+                            backgroundColor: schedulerStatus?.scheduler_active ? "#4CAF50" :
+                                             schedulerStatus?.scheduler_running ? "#FF9800" : "#F44336"
+                        }} />
+                        <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 12, color: "#999" }}>
+                                Background Scheduler: {schedulerStatus?.message || "ERROR: Scheduler status not available"}
                             </div>
                         </div>
                     </div>
