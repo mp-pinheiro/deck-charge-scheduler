@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2024-10-30
+
+### Fixed
+- **Subprocess Compatibility**: Changed from bash to sh to resolve SteamOS readline library issues
+- **Slider Persistence**: Fixed charge limit slider to properly save changes immediately without stale closure issues
+- **Status Display Logic**: Cleaned up get_status() to show correct current limits based on mode and schedule time
+- **Time Display**: Updated duration display to show time range format (e.g., "8:00 - 9:00") instead of just end time
+- **Plugin Loading**: Added explicit main.py entry point to plugin.json for proper backend initialization
+- **Deployment Process**: Improved deployment to completely remove existing plugin before fresh installation
+
+### Improved
+- **Status Calculation**: Better time-based status calculation for schedule mode without relying on stale log parsing
+- **Error Handling**: Enhanced subprocess error handling with better environment configuration
+- **UI Text**: Simplified "Always limit to 80%" to "Always limit" for cleaner interface
+- **Documentation**: Added log location reference for troubleshooting guidance
+
 ## [1.1.0] - 2024-10-29
 
 ### Added
