@@ -10,9 +10,9 @@ class Plugin:
     def __init__(self):
         self.plugin_dir = Path(__file__).parent
         self.script_path = self.plugin_dir / "charge-scheduler.sh"
-        self.config_path = self.plugin_dir / "charge-scheduler.conf"
         self.log_path = Path.home() / ".local/share/charge-scheduler.log"
         self.data_dir = Path(os.environ["DECKY_PLUGIN_RUNTIME_DIR"])
+        self.config_path = self.data_dir / "charge-scheduler.conf"
         self.settings_file = self.data_dir / "settings.json"
         decky_plugin.logger.info(f"Using runtime directory: {self.data_dir}")
 
@@ -46,7 +46,8 @@ class Plugin:
                 return default_config
         except Exception as e:
             decky_plugin.logger.error(f"❌ [_read_cfg] Error reading config from {self.settings_file}: {e}")
-            return self._default_cfg()
+            # FAIL LOUDLY - Don't return defaults on error
+            raise Exception(f"Configuration read failed: {e}")
 
     def _write_cfg(self, mode: str, sh: int, sm: int, dur: int, limit: int, desc: str) -> None:
         # Save to JSON file in runtime directory
@@ -69,6 +70,8 @@ class Plugin:
             decky_plugin.logger.info(f"✅ [_write_cfg] Saved config to {self.settings_file}: {config_data}")
         except Exception as e:
             decky_plugin.logger.error(f"❌ [_write_cfg] Error saving config to {self.settings_file}: {e}")
+            # FAIL LOUDLY - Config write failure should stop execution
+            raise Exception(f"Configuration write failed: {e}")
 
         # Generate runtime config file for bash script
         try:
@@ -95,6 +98,8 @@ SCHEDULE_DESCRIPTION="{desc}"
             decky_plugin.logger.info(f"✅ [_write_cfg] Generated runtime config file: {self.config_path}")
         except Exception as e:
             decky_plugin.logger.error(f"❌ [_write_cfg] Error writing runtime config: {e}")
+            # FAIL LOUDLY - Runtime config write failure should stop execution
+            raise Exception(f"Runtime config write failed: {e}")
 
     async def _tail_logs(self, n: int) -> list[str]:
         if not self.log_path.exists():
@@ -113,9 +118,8 @@ SCHEDULE_DESCRIPTION="{desc}"
             return config
         except Exception as e:
             decky_plugin.logger.error(f"❌ [get_config] Error: {e}")
-            fallback = self._default_cfg()
-            fallback["error"] = str(e)
-            return fallback
+            # FAIL LOUDLY - Config read failure should stop execution
+            raise Exception(f"Get config failed: {e}")
 
     async def set_config(
         self,
@@ -224,15 +228,8 @@ SCHEDULE_DESCRIPTION="{desc}"
             }
         except Exception as e:
             decky_plugin.logger.error(f"get_status error: {e}")
-            cfg = self._read_cfg()
-            return {
-                "current_limit": f"{cfg.get('CHARGE_LIMIT', 80)}%",
-                "next_change": "Schedule active" if cfg.get("MODE") == "schedule" else "—",
-                "config": cfg,
-                "script_path": str(self.script_path),
-                "config_file_exists": self.config_path.exists(),
-                "error": str(e),
-            }
+            # FAIL LOUDLY - Status check failure should stop execution
+            raise Exception(f"Get status failed: {e}")
 
     async def apply_schedule_now(self) -> dict:
         try:
@@ -242,7 +239,7 @@ SCHEDULE_DESCRIPTION="{desc}"
                 capture_output=True,
                 text=True,
                 timeout=30,
-                env={"PATH": "/usr/bin:/bin", "TERM": "dumb"},
+                env={"PATH": "/usr/bin:/bin", "TERM": "dumb", "HOME": os.path.expanduser("~")},
             )
             if result.returncode == 0:
                 decky_plugin.logger.info("Schedule applied")
@@ -256,15 +253,117 @@ SCHEDULE_DESCRIPTION="{desc}"
             decky_plugin.logger.error(f"apply_schedule_now error: {e}")
             return {"success": False, "error": str(e)}
 
+    async def get_scheduler_status(self) -> dict:
+        """Check if the background scheduler is running"""
+        try:
+            scheduler_running = getattr(self, 'scheduler_running', False)
+            scheduler_task = getattr(self, 'scheduler_task', None)
+
+            # Check if task exists and is not done
+            if scheduler_task and not scheduler_task.done():
+                return {
+                    "scheduler_running": True,
+                    "scheduler_active": True,
+                    "message": "Background scheduler is running"
+                }
+            elif scheduler_running:
+                return {
+                    "scheduler_running": True,
+                    "scheduler_active": False,
+                    "message": "Scheduler configured but not active"
+                }
+            else:
+                return {
+                    "scheduler_running": False,
+                    "scheduler_active": False,
+                    "message": "Background scheduler is not running"
+                }
+        except Exception as e:
+            decky_plugin.logger.error(f"get_scheduler_status error: {e}")
+            # FAIL LOUDLY - Scheduler status check failure should stop execution
+            raise Exception(f"Get scheduler status failed: {e}")
+
+    # ---------- background scheduler ----------
+    async def scheduler_loop(self):
+        """Background task that runs the schedule check every 5 minutes"""
+        decky_plugin.logger.info("Background scheduler started")
+
+        while self.scheduler_running:
+            try:
+                decky_plugin.logger.debug("Running scheduled charge check...")
+                await self.check_and_apply_schedule()
+
+                # Sleep for 5 minutes (300 seconds)
+                await asyncio.sleep(300)
+
+            except asyncio.CancelledError:
+                decky_plugin.logger.info("Scheduler cancelled")
+                break
+            except Exception as e:
+                decky_plugin.logger.error(f"Scheduler error: {e}")
+                # Retry sooner on error (1 minute)
+                await asyncio.sleep(60)
+
+        decky_plugin.logger.info("Background scheduler stopped")
+
+    async def check_and_apply_schedule(self):
+        """Check current schedule and apply appropriate charge limit"""
+        try:
+            # Use subprocess to run the schedule check with proper environment
+            result = subprocess.run(
+                ["sh", str(self.script_path), "schedule"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                env={"PATH": "/usr/bin:/bin", "TERM": "dumb", "HOME": os.path.expanduser("~")},
+            )
+
+            if result.returncode == 0:
+                decky_plugin.logger.debug("Schedule check completed successfully")
+            else:
+                decky_plugin.logger.warning(f"Schedule check failed: {result.stderr}")
+
+        except subprocess.TimeoutExpired:
+            decky_plugin.logger.error("Schedule check timed out")
+        except Exception as e:
+            decky_plugin.logger.error(f"Error running schedule check: {e}")
+
     # ---------- lifecycle ----------
     async def _main(self):
         decky_plugin.logger.info("Charge Scheduler backend started")
+
+        # Initialize scheduler state
+        self.scheduler_running = True
+        self.scheduler_task = None
+
         try:
             os.chmod(self.script_path, 0o755)
         except Exception:
             pass
 
+        # Start background scheduler task
+        try:
+            self.scheduler_task = asyncio.create_task(self.scheduler_loop())
+            decky_plugin.logger.info("Background scheduler task created")
+        except Exception as e:
+            decky_plugin.logger.error(f"Failed to start scheduler task: {e}")
+
     async def _unload(self):
+        decky_plugin.logger.info("Charge Scheduler backend stopping...")
+
+        # Stop background scheduler
+        if hasattr(self, 'scheduler_running'):
+            self.scheduler_running = False
+
+        if hasattr(self, 'scheduler_task') and self.scheduler_task:
+            try:
+                self.scheduler_task.cancel()
+                await self.scheduler_task
+            except asyncio.CancelledError:
+                decky_plugin.logger.debug("Scheduler task cancelled during unload")
+            except Exception as e:
+                decky_plugin.logger.error(f"Error stopping scheduler: {e}")
+
         decky_plugin.logger.info("Charge Scheduler backend stopped")
 
     async def _uninstall(self):
