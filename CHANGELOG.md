@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] - 2024-10-30
+
+### Fixed
+- **Deployment Permission Issues**: Resolved root ownership problems with temp directory + sudo move approach
+- **Configuration Persistence**: Fixed user configurations to persist across plugin updates using proper runtime directory
+- **Backend Configuration System**: Replaced non-functional SettingsManager with DECKY_PLUGIN_RUNTIME_DIR pattern
+- **JSON File Operations**: Implemented proper JSON-based configuration storage in runtime directory
+- **User Data Directories**: Added automatic creation of required directories during deployment
+- **Bash Script Integration**: Maintained compatibility with runtime config generation for script backend
+
+### Changed
+- **Configuration Architecture**: Moved from bash config file parsing to JSON-based backend storage
+- **Deployment Process**: Updated to use temporary directory with sudo move instead of direct file operations
+- **Runtime Directory**: Now follows Decky best practices using DECKY_PLUGIN_RUNTIME_DIR environment variable
+
+### Improved
+- **Error Handling**: Enhanced configuration operations with comprehensive logging and exception handling
+- **Plugin Reliability**: Configuration now survives plugin restarts and updates
+- **Deployment Reliability**: Eliminated permission errors during plugin installation
+
 ## [1.1.1] - 2024-10-30
 
 ### Fixed
