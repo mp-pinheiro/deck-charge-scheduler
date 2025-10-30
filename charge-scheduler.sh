@@ -4,7 +4,7 @@
 # Usage: ./charge-scheduler.sh [set|status] [value]
 
 # Fix for SteamOS readline issue when called from subprocess
-set +e
+# Removed set +e - let errors be visible instead of silent
 
 # D-Bus interface for SteamOS Manager
 DBUS_SERVICE="com.steampowered.SteamOSManager1"
@@ -19,19 +19,31 @@ LOG_FILE="$HOME/.local/share/charge-scheduler.log"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="$SCRIPT_DIR/charge-scheduler.conf"
 
-# Load configuration from external file
+# Load configuration from external file - NO FALLBACKS
 load_config() {
-    if [ -f "$CONFIG_FILE" ]; then
-        source "$CONFIG_FILE"
-        simple_log "Loaded configuration from $CONFIG_FILE"
+    # Only try to load from JSON settings file - FAIL LOUDLY if not found
+    local json_settings_file="$HOME/homebrew/data/deck-charge-scheduler/settings.json"
+    if [ -f "$json_settings_file" ]; then
+        # Parse JSON using simple string extraction (more portable than jq)
+        MODE=$(grep -o '"MODE"[[:space:]]*:[[:space:]]*"[^"]*"' "$json_settings_file" | sed 's/.*"MODE"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+        START_HOUR=$(grep -o '"START_HOUR"[[:space:]]*:[[:space:]]*[0-9]*' "$json_settings_file" | sed 's/.*"START_HOUR"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/')
+        START_MINUTE=$(grep -o '"START_MINUTE"[[:space:]]*:[[:space:]]*[0-9]*' "$json_settings_file" | sed 's/.*"START_MINUTE"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/')
+        DURATION_MINUTES=$(grep -o '"DURATION_MINUTES"[[:space:]]*:[[:space:]]*[0-9]*' "$json_settings_file" | sed 's/.*"DURATION_MINUTES"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/')
+        CHARGE_LIMIT=$(grep -o '"CHARGE_LIMIT"[[:space:]]*:[[:space:]]*[0-9]*' "$json_settings_file" | sed 's/.*"CHARGE_LIMIT"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/')
+        simple_log "Loaded configuration from JSON settings file"
     else
-        # Fallback defaults if config file doesn't exist
-        MODE="schedule"
-        START_HOUR=8
-        START_MINUTE=0
-        DURATION_MINUTES=60
-        CHARGE_LIMIT=80
-        simple_log "Using default configuration (config file not found)"
+        # FAIL LOUDLY - No fallbacks, show the actual problem
+        echo "ERROR: JSON configuration file not found: $json_settings_file"
+        echo "ERROR: Plugin configuration not loaded properly"
+        echo "ERROR: Fix: Ensure plugin can write to $HOME/homebrew/data/deck-charge-scheduler/"
+        exit 1
+    fi
+
+    # Validate that required variables were actually loaded
+    if [ -z "$MODE" ] || [ -z "$START_HOUR" ] || [ -z "$START_MINUTE" ] || [ -z "$DURATION_MINUTES" ] || [ -z "$CHARGE_LIMIT" ]; then
+        echo "ERROR: Failed to parse JSON configuration file"
+        echo "ERROR: Required configuration values missing"
+        exit 1
     fi
 }
 
@@ -40,15 +52,19 @@ log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE" 2>/dev/null || echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
 }
 
-# Simple logging function that doesn't duplicate
+# Simple logging function - FAIL LOUDLY if logging broken
 simple_log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE" 2>/dev/null || true
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
+    if [ $? -ne 0 ]; then
+        echo "ERROR: Cannot write to log file: $LOG_FILE"
+        echo "ERROR: Fix: Ensure directory exists and write permissions: $HOME/.local/share/"
+    fi
 }
 
 # Check if running with proper permissions
 check_permissions() {
     if ! gdbus call --system --dest "$DBUS_SERVICE" --object-path "$DBUS_PATH" --method "$DBUS_INTERFACE.$DBUS_METHOD" 80 >/dev/null 2>&1; then
-        log "ERROR: Cannot access D-Bus interface. Make sure user has permission to control charging."
+        log "ERROR: Cannot access D-Bus interface. SteamOS charge control API not available."
         exit 1
     fi
 }
