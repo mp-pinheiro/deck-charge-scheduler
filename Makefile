@@ -1,48 +1,42 @@
 # Decky Charge Scheduler Plugin Makefile
 
-# Load environment variables from .env file
 ifneq (,$(wildcard .env))
 include .env
 export
 endif
 
-# Plugin configuration
+# Constant definitions
 PLUGIN_NAME = deck-charge-scheduler
 DEPLOY_DIR = $(DECK_PLUGIN_DIR)
+REQUIRED_FILES = dist/index.js dist/index.js.map plugin.json main.py package.json charge-scheduler.sh charge-scheduler.conf
 
-# Default connection settings (can be overridden via .env)
+# Connection settings (can be overridden via .env)
 DECK_HOST ?= steamdeck
 DECK_USER ?= deck
 DECK_PORT ?= 22
 DECK_PLUGIN_DIR ?= /home/deck/homebrew/plugins/$(PLUGIN_NAME)
 DECK_SYSTEMD_DIR ?= /home/deck/.config/systemd/user
 
-# Required files for deployment
-REQUIRED_FILES = dist/index.js dist/index.js.map plugin.json main.py package.json charge-scheduler.sh charge-scheduler.conf
 
 .PHONY: all build clean deploy install watch help
 
-# Default target
 all: build
 
-# Build the plugin
 build:
 	@echo "Building plugin..."
 	pnpm run build
 	@echo "Build complete!"
 
-# Install dependencies
 install:
 	@echo "Installing dependencies..."
 	pnpm i
 	@echo "Dependencies installed!"
 
-# Build with file watching for development
 watch:
 	@echo "Starting watch mode..."
 	pnpm run watch
 
-# Deploy plugin to remote Steam Deck
+# Deploy plugin to remote Steam Deck (requires SSH key authentication)
 deploy: build
 	@echo "Deploying plugin to remote Steam Deck at $(DECK_USER)@$(DECK_HOST):$(DECK_PORT)..."
 	@# SSH key authentication is set up and working
@@ -87,19 +81,12 @@ deploy: build
 		echo "💡 Use Chrome DevTools to connect to http://$(DECK_HOST):$(CEF_DEBUG_PORT)"; \
 	fi
 
-# Systemd timer no longer needed - using native Decky background tasks
-deploy-systemd:
-	@echo "⚠️ Systemd timer no longer required"
-	@echo "The plugin now uses native Decky background tasks."
-	@echo "Simply run 'make deploy' to install the plugin."
-
-# Clean build artifacts
 clean:
 	@echo "Cleaning build artifacts..."
 	rm -rf dist/
 	@echo "Clean complete!"
 
-# Verify deployment structure
+# Verify deployment structure on remote Steam Deck (requires SSH key authentication)
 verify:
 	@echo "Verifying remote deployment structure on $(DECK_USER)@$(DECK_HOST)..."
 	@ssh -p $(DECK_PORT) $(DECK_USER)@$(DECK_HOST) "if [ -d '$(DECK_PLUGIN_DIR)' ]; then \
@@ -115,30 +102,16 @@ verify:
 		echo '✗ Plugin directory does not exist: $(DECK_PLUGIN_DIR)'; \
 	fi"
 
-# Remove deployed plugin
 undeploy:
 	@echo "Removing deployed plugin from remote Steam Deck..."
 	@ssh -p $(DECK_PORT) $(DECK_USER)@$(DECK_HOST) "if [ -d '$(DECK_PLUGIN_DIR)' ]; then rm -rf '$(DECK_PLUGIN_DIR)' && echo '✅ Plugin removed from $(DECK_PLUGIN_DIR)'; else echo '⚠️ Plugin directory does not exist: $(DECK_PLUGIN_DIR)'; fi"
 
-# Development workflow: install, build, deploy
 dev: install build deploy
 
-# Full setup - systemd no longer needed
-full-setup: dev
-	@echo "✅ Plugin setup complete!"
-	@echo "The plugin uses native Decky background tasks - no systemd setup required."
-
-# CEF debugging helper
-debug-cef:
-	@echo "Starting CEF debugging setup..."
-	./scripts/debug-cef.sh setup
-
-# Comprehensive deployment verification
 verify-full:
 	@echo "Running comprehensive deployment verification..."
 	./scripts/verify-deployment.sh
 
-# Show help
 help:
 	@echo "Available targets:"
 	@echo "  build            - Build the plugin (pnpm run build)"
@@ -149,14 +122,12 @@ help:
 	@echo "  clean            - Remove build artifacts"
 	@echo "  verify           - Check remote deployment structure"
 	@echo "  verify-full      - Comprehensive deployment verification"
-	@echo "  debug-cef        - Set up CEF debugging for development"
 	@echo "  undeploy         - Remove deployed plugin from remote Steam Deck"
 	@echo "  dev              - Full development workflow (install + build + deploy)"
 	@echo "  full-setup       - Complete plugin setup (systemd no longer required)"
 	@echo "  help             - Show this help message"
 	@echo ""
 	@echo "Development scripts:"
-	@echo "  ./scripts/debug-cef.sh     - CEF debugging helper"
 	@echo "  ./scripts/verify-deployment.sh - Comprehensive verification"
 	@echo ""
 	@echo "Environment variables (configure in .env file):"

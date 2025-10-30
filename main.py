@@ -16,8 +16,6 @@ class Plugin:
         self.settings_file = self.data_dir / "settings.json"
         decky_plugin.logger.info(f"Using runtime directory: {self.data_dir}")
 
-    # ---------- helpers ----------
-
     def _default_cfg(self) -> dict:
         return {
             "MODE": "schedule",
@@ -29,28 +27,22 @@ class Plugin:
         }
 
     def _read_cfg(self) -> dict:
-        # Read from JSON file in runtime directory
         try:
             if self.settings_file.exists():
                 with open(self.settings_file, "r") as f:
                     config = json.load(f)
-                decky_plugin.logger.info(f"✅ [_read_cfg] Loaded config from {self.settings_file}: {config}")
+                decky_plugin.logger.info(f"Loaded config from {self.settings_file}: {config}")
                 return config
             else:
-                # Settings file doesn't exist, initialize with defaults
                 default_config = self._default_cfg()
                 self._write_cfg(**default_config)
-                decky_plugin.logger.info(
-                    f"🆕 [_read_cfg] Created default config at {self.settings_file}: {default_config}"
-                )
+                decky_plugin.logger.info(f"Created default config at {self.settings_file}: {default_config}")
                 return default_config
         except Exception as e:
-            decky_plugin.logger.error(f"❌ [_read_cfg] Error reading config from {self.settings_file}: {e}")
-            # FAIL LOUDLY - Don't return defaults on error
+            decky_plugin.logger.error(f"Error reading config from {self.settings_file}: {e}")
             raise Exception(f"Configuration read failed: {e}")
 
     def _write_cfg(self, mode: str, sh: int, sm: int, dur: int, limit: int, desc: str) -> None:
-        # Save to JSON file in runtime directory
         try:
             config_data = {
                 "MODE": mode,
@@ -61,16 +53,14 @@ class Plugin:
                 "SCHEDULE_DESCRIPTION": desc,
             }
 
-            # Ensure data directory exists
             self.data_dir.mkdir(parents=True, exist_ok=True)
 
             with open(self.settings_file, "w") as f:
                 json.dump(config_data, f, indent=2)
 
-            decky_plugin.logger.info(f"✅ [_write_cfg] Saved config to {self.settings_file}: {config_data}")
+            decky_plugin.logger.info(f"Saved config to {self.settings_file}: {config_data}")
         except Exception as e:
-            decky_plugin.logger.error(f"❌ [_write_cfg] Error saving config to {self.settings_file}: {e}")
-            # FAIL LOUDLY - Config write failure should stop execution
+            decky_plugin.logger.error(f"Error saving config to {self.settings_file}: {e}")
             raise Exception(f"Configuration write failed: {e}")
 
         # Generate runtime config file for bash script
@@ -95,10 +85,9 @@ SCHEDULE_DESCRIPTION="{desc}"
 """
             with open(self.config_path, "w") as f:
                 f.write(text)
-            decky_plugin.logger.info(f"✅ [_write_cfg] Generated runtime config file: {self.config_path}")
+            decky_plugin.logger.info(f"Generated runtime config file: {self.config_path}")
         except Exception as e:
-            decky_plugin.logger.error(f"❌ [_write_cfg] Error writing runtime config: {e}")
-            # FAIL LOUDLY - Runtime config write failure should stop execution
+            decky_plugin.logger.error(f"Error writing runtime config: {e}")
             raise Exception(f"Runtime config write failed: {e}")
 
     async def _tail_logs(self, n: int) -> list[str]:
@@ -108,17 +97,14 @@ SCHEDULE_DESCRIPTION="{desc}"
             lines = f.readlines()
         return [ln.strip() for ln in lines[-n:]]
 
-    # ---------- callables ----------
-
     async def get_config(self) -> dict:
-        decky_plugin.logger.info("🔄 [get_config] Request received")
+        decky_plugin.logger.info("Request received")
         try:
             config = self._read_cfg()
-            decky_plugin.logger.info(f"✅ [get_config] Returning config: {config}")
+            decky_plugin.logger.info(f"Returning config: {config}")
             return config
         except Exception as e:
-            decky_plugin.logger.error(f"❌ [get_config] Error: {e}")
-            # FAIL LOUDLY - Config read failure should stop execution
+            decky_plugin.logger.error(f"Error: {e}")
             raise Exception(f"Get config failed: {e}")
 
     async def set_config(
@@ -131,50 +117,50 @@ SCHEDULE_DESCRIPTION="{desc}"
         description: str = "",
     ) -> dict:
         decky_plugin.logger.info(
-            f"💾 [set_config] Request: mode={mode}, time={start_hour}:{start_minute}, duration={duration}, limit={charge_limit}%"
+            f"Request: mode={mode}, time={start_hour}:{start_minute}, duration={duration}, limit={charge_limit}%"
         )
 
         try:
             if mode not in ["schedule", "always_full", "always_limit"]:
                 error_msg = "Invalid mode"
-                decky_plugin.logger.error(f"❌ [set_config] {error_msg}: {mode}")
+                decky_plugin.logger.error(f"{error_msg}: {mode}")
                 return {"success": False, "error": error_msg}
             if not (0 <= start_hour <= 23) or not (0 <= start_minute <= 59):
                 error_msg = "Invalid time values"
-                decky_plugin.logger.error(f"❌ [set_config] {error_msg}: {start_hour}:{start_minute}")
+                decky_plugin.logger.error(f"{error_msg}: {start_hour}:{start_minute}")
                 return {"success": False, "error": error_msg}
             if not (5 <= duration <= 480):
                 error_msg = "Duration must be 5–480 minutes"
-                decky_plugin.logger.error(f"❌ [set_config] {error_msg}: {duration}")
+                decky_plugin.logger.error(f"{error_msg}: {duration}")
                 return {"success": False, "error": error_msg}
             if not (50 <= charge_limit <= 100):
                 error_msg = "Charge limit must be 50–100"
-                decky_plugin.logger.error(f"❌ [set_config] {error_msg}: {charge_limit}")
+                decky_plugin.logger.error(f"{error_msg}: {charge_limit}")
                 return {"success": False, "error": error_msg}
 
             try:
                 os.chmod(self.script_path, 0o755)
-                decky_plugin.logger.info("🔧 [set_config] Script permissions set")
+                decky_plugin.logger.info("Script permissions set")
             except Exception as e:
-                decky_plugin.logger.warning(f"⚠️ [set_config] Could not set script permissions: {e}")
+                decky_plugin.logger.warning(f"Could not set script permissions: {e}")
 
             self._write_cfg(mode, start_hour, start_minute, duration, charge_limit, description)
             decky_plugin.logger.info(
-                f"✅ [set_config] Config saved successfully: {mode} {start_hour}:{start_minute} {duration}m {charge_limit}%"
+                f"Config saved successfully: {mode} {start_hour}:{start_minute} {duration}m {charge_limit}%"
             )
             return {"success": True, "message": "Configuration saved successfully"}
         except Exception as e:
-            decky_plugin.logger.error(f"❌ [set_config] Exception: {e}")
+            decky_plugin.logger.error(f"Exception: {e}")
             return {"success": False, "error": str(e)}
 
     async def get_status(self) -> dict:
-        decky_plugin.logger.info("🔄 [get_status] Request received")
+        decky_plugin.logger.info("Request received")
         try:
             cfg = self._read_cfg()
-            decky_plugin.logger.info(f"📖 [get_status] Config loaded: {cfg}")
+            decky_plugin.logger.info(f"Config loaded: {cfg}")
 
             logs = await self._tail_logs(20)
-            decky_plugin.logger.info(f"📋 [get_status] Found {len(logs)} log entries")
+            decky_plugin.logger.info(f"Found {len(logs)} log entries")
 
             # For schedule mode, show the appropriate current limit based on time
             mode = cfg.get("MODE", "schedule")
@@ -189,23 +175,18 @@ SCHEDULE_DESCRIPTION="{desc}"
                 end = start + timedelta(minutes=dur)
 
                 if now >= start and now < end:
-                    # During charging window - should be 100%
                     current = "100%"
-                    decky_plugin.logger.info(f"☀️ [get_status] In charging window, showing 100%")
+                    decky_plugin.logger.info(f"In charging window, showing 100%")
                 else:
-                    # Outside charging window - show configured limit
                     current = f"{cfg.get('CHARGE_LIMIT', 80)}%"
-                    decky_plugin.logger.info(
-                        f"🔋 [get_status] Outside charging window, showing configured limit: {current}"
-                    )
+                    decky_plugin.logger.info(f"Outside charging window, showing configured limit: {current}")
             elif mode == "always_full":
                 current = "100%"
-                decky_plugin.logger.info(f"🔌 [get_status] Always full mode: {current}")
+                decky_plugin.logger.info(f"Always full mode: {current}")
             else:  # always_limit
                 current = f"{cfg.get('CHARGE_LIMIT', 80)}%"
-                decky_plugin.logger.info(f"🔋 [get_status] Always limit mode: {current}")
+                decky_plugin.logger.info(f"Always limit mode: {current}")
 
-            # Calculate next_change message
             if mode == "schedule":
                 time_range = f"{start.strftime('%H:%M')} - {end.strftime('%H:%M')}"
                 if now < start:
@@ -228,12 +209,11 @@ SCHEDULE_DESCRIPTION="{desc}"
             }
         except Exception as e:
             decky_plugin.logger.error(f"get_status error: {e}")
-            # FAIL LOUDLY - Status check failure should stop execution
             raise Exception(f"Get status failed: {e}")
 
     async def apply_schedule_now(self) -> dict:
         try:
-            # Try using sh instead of bash to avoid readline compatibility issues
+            # Note: we use sh instead of bash to avoid readline compatibility issues
             result = subprocess.run(
                 ["sh", str(self.script_path), "reload"],
                 capture_output=True,
@@ -256,34 +236,31 @@ SCHEDULE_DESCRIPTION="{desc}"
     async def get_scheduler_status(self) -> dict:
         """Check if the background scheduler is running"""
         try:
-            scheduler_running = getattr(self, 'scheduler_running', False)
-            scheduler_task = getattr(self, 'scheduler_task', None)
+            scheduler_running = getattr(self, "scheduler_running", False)
+            scheduler_task = getattr(self, "scheduler_task", None)
 
-            # Check if task exists and is not done
             if scheduler_task and not scheduler_task.done():
                 return {
                     "scheduler_running": True,
                     "scheduler_active": True,
-                    "message": "Background scheduler is running"
+                    "message": "Background scheduler is running",
                 }
             elif scheduler_running:
                 return {
                     "scheduler_running": True,
                     "scheduler_active": False,
-                    "message": "Scheduler configured but not active"
+                    "message": "Scheduler configured but not active",
                 }
             else:
                 return {
                     "scheduler_running": False,
                     "scheduler_active": False,
-                    "message": "Background scheduler is not running"
+                    "message": "Background scheduler is not running",
                 }
         except Exception as e:
             decky_plugin.logger.error(f"get_scheduler_status error: {e}")
-            # FAIL LOUDLY - Scheduler status check failure should stop execution
             raise Exception(f"Get scheduler status failed: {e}")
 
-    # ---------- background scheduler ----------
     async def scheduler_loop(self):
         """Background task that runs the schedule check every 5 minutes"""
         decky_plugin.logger.info("Background scheduler started")
@@ -293,7 +270,6 @@ SCHEDULE_DESCRIPTION="{desc}"
                 decky_plugin.logger.debug("Running scheduled charge check...")
                 await self.check_and_apply_schedule()
 
-                # Sleep for 5 minutes (300 seconds)
                 await asyncio.sleep(300)
 
             except asyncio.CancelledError:
@@ -301,7 +277,6 @@ SCHEDULE_DESCRIPTION="{desc}"
                 break
             except Exception as e:
                 decky_plugin.logger.error(f"Scheduler error: {e}")
-                # Retry sooner on error (1 minute)
                 await asyncio.sleep(60)
 
         decky_plugin.logger.info("Background scheduler stopped")
@@ -309,7 +284,6 @@ SCHEDULE_DESCRIPTION="{desc}"
     async def check_and_apply_schedule(self):
         """Check current schedule and apply appropriate charge limit"""
         try:
-            # Use subprocess to run the schedule check with proper environment
             result = subprocess.run(
                 ["sh", str(self.script_path), "schedule"],
                 capture_output=True,
@@ -328,11 +302,9 @@ SCHEDULE_DESCRIPTION="{desc}"
         except Exception as e:
             decky_plugin.logger.error(f"Error running schedule check: {e}")
 
-    # ---------- lifecycle ----------
     async def _main(self):
         decky_plugin.logger.info("Charge Scheduler backend started")
 
-        # Initialize scheduler state
         self.scheduler_running = True
         self.scheduler_task = None
 
@@ -341,7 +313,6 @@ SCHEDULE_DESCRIPTION="{desc}"
         except Exception:
             pass
 
-        # Start background scheduler task
         try:
             self.scheduler_task = asyncio.create_task(self.scheduler_loop())
             decky_plugin.logger.info("Background scheduler task created")
@@ -351,11 +322,10 @@ SCHEDULE_DESCRIPTION="{desc}"
     async def _unload(self):
         decky_plugin.logger.info("Charge Scheduler backend stopping...")
 
-        # Stop background scheduler
-        if hasattr(self, 'scheduler_running'):
+        if hasattr(self, "scheduler_running"):
             self.scheduler_running = False
 
-        if hasattr(self, 'scheduler_task') and self.scheduler_task:
+        if hasattr(self, "scheduler_task") and self.scheduler_task:
             try:
                 self.scheduler_task.cancel()
                 await self.scheduler_task

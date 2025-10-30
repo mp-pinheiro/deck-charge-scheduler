@@ -15,7 +15,6 @@ import {
 import { FaBolt } from "react-icons/fa";
 import { useEffect, useState, useMemo } from "react";
 
-// -------- Types --------
 interface SingleDropdownOption {
     data: any;
     label: string;
@@ -38,14 +37,12 @@ interface ChargeStatus {
     error?: string;
 }
 
-// -------- Backend callables (working pattern) --------
 const get_config = callable<any[], any>("get_config");
 const set_config = callable<any[], any>("set_config");
 const get_status = callable<any[], any>("get_status");
 const apply_schedule_now = callable<any[], any>("apply_schedule_now");
 const get_scheduler_status = callable<any[], any>("get_scheduler_status");
 
-// -------- Utils --------
 const debounce = <T extends (...args: any[]) => any>(fn: T, wait: number): T => {
     let t: ReturnType<typeof setTimeout>;
     return ((...args: Parameters<T>) => {
@@ -57,7 +54,6 @@ const debounce = <T extends (...args: any[]) => any>(fn: T, wait: number): T => 
 const hhmm = (h: number, m: number) =>
     `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 
-// -------- Global state (prevents re-mount resets) --------
 let globalConfig: ChargeConfig = {
     mode: "schedule",
     start_hour: 8,
@@ -67,18 +63,13 @@ let globalConfig: ChargeConfig = {
 };
 
 function Content() {
-    console.log("Content rendering with globalConfig:", globalConfig);
-
     const [uiConfig, setUiConfig] = useState<ChargeConfig>(globalConfig);
     const [status, setStatus] = useState<ChargeStatus | null>(null);
     const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
     const [limitLocal, setLimitLocal] = useState<number>(globalConfig.charge_limit);
     const [schedulerStatus, setSchedulerStatus] = useState<any>(null);
 
-    // Sync slider with global state
     useEffect(() => setLimitLocal(uiConfig.charge_limit), [uiConfig.charge_limit]);
-
-    // Options (stable with useMemo)
     const modeOptions: SingleDropdownOption[] = useMemo(
         () => [
             { data: "schedule", label: "Follow Schedule" },
@@ -110,15 +101,10 @@ function Content() {
         ],
         []
     );
-
-    
-    // Initial load
     useEffect(() => {
         (async () => {
             try {
-                console.log("🔄 [init] Loading config from backend...");
                 const res = await get_config();
-                console.log("📥 [init] Backend response:", res);
 
                 // FAIL LOUDLY - Don't provide defaults when backend config is missing
                 if (!res || res.MODE === undefined || res.START_HOUR === undefined || res.START_MINUTE === undefined || res.DURATION_MINUTES === undefined || res.CHARGE_LIMIT === undefined) {
@@ -133,11 +119,10 @@ function Content() {
                     charge_limit: res.CHARGE_LIMIT,
                 };
 
-                globalConfig = cfg; // Update global state
+                globalConfig = cfg;
                 setUiConfig(cfg);
-                console.log("✅ [init] Config loaded and set:", cfg);
             } catch (e) {
-                console.error("❌ [init] Failed to load config:", e);
+                console.error("Failed to load config:", e);
                 showModal(
                     <div style={{ padding: 16 }}>
                         <h3>Failed to load config</h3>
@@ -156,50 +141,36 @@ function Content() {
     const loadSchedulerStatus = async () => {
         try {
             const res = await get_scheduler_status();
-            console.log("📥 [loadSchedulerStatus] Response:", res);
             setSchedulerStatus(res);
         } catch (error) {
-            console.error("❌ [loadSchedulerStatus] Exception caught:", error);
-            // FAIL LOUDLY - Let scheduler status be empty to show backend failure
+            console.error("Failed to load scheduler status:", error);
             setSchedulerStatus(null);
         }
     };
 
     const loadStatus = async () => {
-        console.log("🔄 [loadStatus] Starting status update...");
         try {
-            console.log("📡 [loadStatus] Calling get_status()...");
             const res = await get_status();
-            console.log("📥 [loadStatus] get_status() response:", res);
 
             if (res && !res.error) {
-                console.log("✅ [loadStatus] Setting valid status:", res);
                 setStatus(res);
             } else {
-                console.warn("⚠️ [loadStatus] Invalid response or error:", res);
-                // FAIL LOUDLY - Let status be empty to show backend failure
                 setStatus(null);
             }
         } catch (error) {
-            console.error("❌ [loadStatus] Exception caught:", error);
-            // FAIL LOUDLY - Let status be empty to show backend failure
+            console.error("Failed to load status:", error);
             setStatus(null);
         } finally {
             setLastUpdate(new Date());
-            console.log("🏁 [loadStatus] Status update complete");
         }
 
-        // Also load scheduler status
         await loadSchedulerStatus();
     };
 
-    // Persist config - WORKING PATTERN
     const commitConfig = async (next: ChargeConfig) => {
-        console.log("💾 [commitConfig] Starting config save:", next);
         setUiConfig(next); // optimistic
         try {
             const desc = `Schedule: ${hhmm(next.start_hour, next.start_minute)} for ${next.duration_minutes} minutes`;
-            console.log("📡 [commitConfig] Calling set_config() with:", next.mode, next.start_hour, next.start_minute, next.duration_minutes, next.charge_limit, desc);
 
             const res = await set_config(
                 next.mode,
@@ -210,10 +181,8 @@ function Content() {
                 desc
             );
 
-            console.log("📥 [commitConfig] set_config() response:", res);
-
             if (!res?.success) {
-                console.error("❌ [commitConfig] Save failed:", res?.error);
+                console.error("Save failed:", res?.error);
                 showModal(
                     <div style={{ padding: 16 }}>
                         <h3>Save failed</h3>
@@ -223,100 +192,64 @@ function Content() {
                     </div>
                 );
             } else {
-                console.log("✅ [commitConfig] Save successful");
-                globalConfig = next; // Update global state
-
-                // Auto-apply the configuration
-                console.log("🔄 [commitConfig] Auto-applying configuration...");
+                globalConfig = next;
                 await apply_schedule_now();
-                console.log("✅ [commitConfig] Configuration applied successfully");
             }
 
-            console.log("🔄 [commitConfig] Refreshing status after apply...");
             await loadStatus();
         } catch (e) {
-            console.error("❌ [commitConfig] Exception caught:", e);
+            console.error("Save error:", e);
             showModal(
                 <div style={{ padding: 16 }}>
                     <h3>Save error</h3>
                     <div style={{ marginTop: 8, whiteSpace: "pre-wrap" }}>{String(e)}</div>
                 </div>
             );
-        } finally {
-            console.log("🏁 [commitConfig] Config save complete");
         }
     };
 
-  
-    // Debounced slider save - WORKING PATTERN
     const commitLimit = useMemo(
         () =>
             debounce((v: number) => {
-                console.log("🎚️ [commitLimit] Debounced slider save:", v);
                 setUiConfig(prev => {
                     const updated = { ...prev, charge_limit: v };
-                    globalConfig = updated; // Update global state
+                    globalConfig = updated; // 
                     commitConfig(updated);
                     return updated;
                 });
             }, 300),
-        [] // Empty dependency array - function is stable
+        []
     );
 
-    // Dropdown change handlers - WORKING PATTERN
     const onModeChange = (option: SingleDropdownOption) => {
-        console.log("🎛️ [Mode Dropdown] === CHANGE START ===");
-        console.log("Changing from", uiConfig.mode, "to", option.data);
-        console.log("Option object:", option);
-
         const updated = { ...uiConfig, mode: option.data as ChargeConfig["mode"] };
-        globalConfig = updated; // Update global state
+        globalConfig = updated;
         setUiConfig(updated);
         commitConfig(updated);
-
-        console.log("Updated globalConfig and uiConfig to:", updated);
-        console.log("=== MODE CHANGE END ===");
     };
 
     const onTimeChange = (option: SingleDropdownOption) => {
-        console.log("🕐 [Time Dropdown] === CHANGE START ===");
-        console.log("Changing from", hhmm(uiConfig.start_hour, uiConfig.start_minute), "to", option.data);
-        console.log("Option object:", option);
-
         const [h, m] = option.data.split(":").map(Number);
         const updated = { ...uiConfig, start_hour: h, start_minute: m };
-        globalConfig = updated; // Update global state
+        globalConfig = updated;
         setUiConfig(updated);
         commitConfig(updated);
-
-        console.log("Updated globalConfig and uiConfig to:", updated);
-        console.log("=== TIME CHANGE END ===");
     };
 
     const onDurationChange = (option: SingleDropdownOption) => {
-        console.log("⏱️ [Duration Dropdown] === CHANGE START ===");
-        console.log("Changing from", uiConfig.duration_minutes, "to", option.data);
-        console.log("Option object:", option);
-
         const updated = { ...uiConfig, duration_minutes: option.data as number };
-        globalConfig = updated; // Update global state
+        globalConfig = updated;
         setUiConfig(updated);
         commitConfig(updated);
-
-        console.log("Updated globalConfig and uiConfig to:", updated);
-        console.log("=== DURATION CHANGE END ===");
     };
 
-    // Slider change handler
     const onSliderChange = (v: number) => {
-        console.log("🎚️ [Slider] Changed from", limitLocal, "to", v);
         setLimitLocal(v);
         commitLimit(v);
     };
 
     return (
         <div style={{ maxHeight: "80vh", overflowY: "auto" }}>
-            {/* Info */}
             <PanelSection title="Information">
                 <PanelSectionRow>
                     <div style={{ fontSize: 13, lineHeight: 1.4 }}>
@@ -327,7 +260,6 @@ function Content() {
                 </PanelSectionRow>
             </PanelSection>
 
-            {/* Status */}
             <PanelSection title="Status">
                 <PanelSectionRow>
                     <div style={{ display: "flex", alignItems: "center", padding: "10px 0" }}>
@@ -353,7 +285,7 @@ function Content() {
                             borderRadius: "50%",
                             marginRight: 8,
                             backgroundColor: schedulerStatus?.scheduler_active ? "#4CAF50" :
-                                             schedulerStatus?.scheduler_running ? "#FF9800" : "#F44336"
+                                schedulerStatus?.scheduler_running ? "#FF9800" : "#F44336"
                         }} />
                         <div style={{ flex: 1 }}>
                             <div style={{ fontSize: 12, color: "#999" }}>
@@ -364,7 +296,6 @@ function Content() {
                 </PanelSectionRow>
             </PanelSection>
 
-            {/* Mode */}
             <PanelSection title="Operation Mode">
                 <PanelSectionRow>
                     <div onClick={(e) => e.stopPropagation()} style={{ display: "contents" }}>
@@ -379,7 +310,6 @@ function Content() {
                 </PanelSectionRow>
             </PanelSection>
 
-            {/* Schedule */}
             {uiConfig.mode === "schedule" && (
                 <PanelSection title="Schedule Configuration">
                     <PanelSectionRow>
@@ -408,7 +338,6 @@ function Content() {
                 </PanelSection>
             )}
 
-            {/* Charge Limit */}
             {uiConfig.mode !== "always_full" && (
                 <PanelSection title="Charge Limit">
                     <PanelSectionRow>
@@ -438,11 +367,7 @@ function Content() {
 }
 
 export default definePlugin(() => {
-    console.log("Smart Charge Scheduler plugin initializing");
-
-    const listener = addEventListener("timer_event", () => {
-        console.log("Timer event received");
-    });
+    const listener = addEventListener("timer_event", () => { });
 
     return {
         name: "Smart Charge Scheduler",
@@ -456,7 +381,6 @@ export default definePlugin(() => {
         icon: <FaBolt />,
 
         onDismount() {
-            console.log("Smart Charge Scheduler plugin unloaded");
             removeEventListener("timer_event", listener);
         },
     };
