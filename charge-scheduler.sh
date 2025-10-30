@@ -3,7 +3,8 @@
 # Steam Deck Charge Scheduler Script
 # Usage: ./charge-scheduler.sh [set|status] [value]
 
-set -euo pipefail
+# Fix for SteamOS readline issue when called from subprocess
+set +e
 
 # D-Bus interface for SteamOS Manager
 DBUS_SERVICE="com.steampowered.SteamOSManager1"
