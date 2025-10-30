@@ -317,6 +317,12 @@ ssh deck@steamdeck "tail -f ~/.local/share/decky/logs/plugin_loader.log"
 
 # Check systemd timer status
 ssh deck@steamdeck "systemctl --user status charge-scheduler.timer"
+
+# Check actual system battery charge limit
+ssh deck@steamdeck "cat /sys/devices/pci0000:00/0000:00:14.3/PNP0C09:00/VLV0100:00/steamdeck-hwmon/hwmon/hwmon3/max_battery_charge_level"
+
+# Alternative: Find battery charge level file dynamically
+ssh deck@steamdeck "find /sys/devices -name '*charge_level*' -type f 2>/dev/null"
 ```
 
 ## Security Considerations
@@ -370,3 +376,4 @@ Refer to `docs/decky/` for comprehensive Decky development documentation:
 - Multiple configuration profiles
 - Mobile app remote control
 - Full logs at `/home/deck/homebrew/logs/deck-charge-scheduler`
+- Logs only update on restart. For current logs, ALWAYS check hared SharedJS with playwright.
