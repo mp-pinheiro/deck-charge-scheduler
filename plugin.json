@@ -3,6 +3,7 @@
   "author": "fairfruit",
   "flags": [],
   "api_version": 1,
+  "main": "main.py",
   "publish": {
     "tags": ["battery", "power", "charging", "scheduler", "steam-deck"],
     "description": "A charge scheduler plugin with GUI for battery health management on Steam Deck.",

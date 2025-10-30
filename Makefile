@@ -51,8 +51,11 @@ deploy: build
 		echo "📦 Creating backup of existing plugin..."; \
 		ssh -p $(DECK_PORT) $(DECK_USER)@$(DECK_HOST) "if [ -d '$(DECK_PLUGIN_DIR)' ]; then cp -r '$(DECK_PLUGIN_DIR)' '$(DECK_PLUGIN_DIR).backup.$(shell date +%Y%m%d_%H%M%S)'; echo 'Backup created'; else echo 'No existing plugin to backup'; fi"; \
 	fi
-	@# Create remote deployment directory and fix permissions
-	@echo "📁 Creating remote plugin directory..."
+	@# Remove existing plugin completely
+	@echo "🗑️  Removing existing plugin directory..."
+	ssh -p $(DECK_PORT) $(DECK_USER)@$(DECK_HOST) "rm -rf '$(DECK_PLUGIN_DIR)' 2>/dev/null || true"
+	@# Create fresh remote deployment directory and fix permissions
+	@echo "📁 Creating fresh remote plugin directory..."
 	ssh -p $(DECK_PORT) $(DECK_USER)@$(DECK_HOST) "mkdir -p '$(DECK_PLUGIN_DIR)'"
 	@echo "🔐 Updating ownership of deployment directory..."
 	sshpass -p '$(DECK_PASSWORD)' ssh -p $(DECK_PORT) $(DECK_USER)@$(DECK_HOST) "echo '$(DECK_PASSWORD)' | sudo -S chown -R $(DECK_USER):$(DECK_USER) '$(DECK_PLUGIN_DIR)'"
