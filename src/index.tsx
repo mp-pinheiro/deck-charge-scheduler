@@ -282,6 +282,7 @@ function Content() {
                 console.log("🎚️ [commitLimit] Debounced slider save:", v);
                 setUiConfig(prev => {
                     const updated = { ...prev, charge_limit: v };
+                    globalConfig = updated; // Update global state
                     commitConfig(updated);
                     return updated;
                 });
