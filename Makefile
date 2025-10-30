@@ -51,25 +51,34 @@ deploy: build
 		echo "📦 Creating backup of existing plugin..."; \
 		ssh -p $(DECK_PORT) $(DECK_USER)@$(DECK_HOST) "if [ -d '$(DECK_PLUGIN_DIR)' ]; then cp -r '$(DECK_PLUGIN_DIR)' '$(DECK_PLUGIN_DIR).backup.$(shell date +%Y%m%d_%H%M%S)'; echo 'Backup created'; else echo 'No existing plugin to backup'; fi"; \
 	fi
-	@# Remove existing plugin completely
+	@# Remove existing plugin completely with sudo
 	@echo "🗑️  Removing existing plugin directory..."
-	ssh -p $(DECK_PORT) $(DECK_USER)@$(DECK_HOST) "rm -rf '$(DECK_PLUGIN_DIR)' 2>/dev/null || true"
-	@# Create fresh remote deployment directory and fix permissions
+	sshpass -p '$(DECK_PASSWORD)' ssh -p $(DECK_PORT) $(DECK_USER)@$(DECK_HOST) "echo '$(DECK_PASSWORD)' | sudo -S rm -rf '$(DECK_PLUGIN_DIR)' 2>/dev/null || true"
+	@# Create fresh remote deployment directory with sudo
 	@echo "📁 Creating fresh remote plugin directory..."
-	ssh -p $(DECK_PORT) $(DECK_USER)@$(DECK_HOST) "mkdir -p '$(DECK_PLUGIN_DIR)'"
-	@echo "🔐 Updating ownership of deployment directory..."
-	sshpass -p '$(DECK_PASSWORD)' ssh -p $(DECK_PORT) $(DECK_USER)@$(DECK_HOST) "echo '$(DECK_PASSWORD)' | sudo -S chown -R $(DECK_USER):$(DECK_USER) '$(DECK_PLUGIN_DIR)'"
-	@# Deploy files using SCP
-	@echo "📤 Copying plugin files to remote Steam Deck..."
-	scp -P $(DECK_PORT) -r dist $(DECK_USER)@$(DECK_HOST):$(DECK_PLUGIN_DIR)/
-	scp -P $(DECK_PORT) plugin.json $(DECK_USER)@$(DECK_HOST):$(DECK_PLUGIN_DIR)/
-	scp -P $(DECK_PORT) main.py $(DECK_USER)@$(DECK_HOST):$(DECK_PLUGIN_DIR)/
-	scp -P $(DECK_PORT) package.json $(DECK_USER)@$(DECK_HOST):$(DECK_PLUGIN_DIR)/
-	scp -P $(DECK_PORT) charge-scheduler.sh $(DECK_USER)@$(DECK_HOST):$(DECK_PLUGIN_DIR)/
-	scp -P $(DECK_PORT) charge-scheduler.conf $(DECK_USER)@$(DECK_HOST):$(DECK_PLUGIN_DIR)/
-	@# Set executable permissions
+	sshpass -p '$(DECK_PASSWORD)' ssh -p $(DECK_PORT) $(DECK_USER)@$(DECK_HOST) "echo '$(DECK_PASSWORD)' | sudo -S mkdir -p '$(DECK_PLUGIN_DIR)'"
+	@# Create temp directory for file transfer
+	@echo "📁 Creating temporary directory for file transfer..."
+	ssh -p $(DECK_PORT) $(DECK_USER)@$(DECK_HOST) "mkdir -p /tmp/deploy-temp"
+	@# Deploy files to temp directory using SCP
+	@echo "📤 Copying plugin files to temporary directory..."
+	scp -P $(DECK_PORT) -r dist $(DECK_USER)@$(DECK_HOST):/tmp/deploy-temp/
+	scp -P $(DECK_PORT) plugin.json $(DECK_USER)@$(DECK_HOST):/tmp/deploy-temp/
+	scp -P $(DECK_PORT) main.py $(DECK_USER)@$(DECK_HOST):/tmp/deploy-temp/
+	scp -P $(DECK_PORT) package.json $(DECK_USER)@$(DECK_HOST):/tmp/deploy-temp/
+	scp -P $(DECK_PORT) charge-scheduler.sh $(DECK_USER)@$(DECK_HOST):/tmp/deploy-temp/
+	@# Move files from temp to plugin directory with sudo
+	@echo "📦 Moving files to plugin directory with sudo..."
+	sshpass -p '$(DECK_PASSWORD)' ssh -p $(DECK_PORT) $(DECK_USER)@$(DECK_HOST) "echo '$(DECK_PASSWORD)' | sudo -S cp -r /tmp/deploy-temp/* '$(DECK_PLUGIN_DIR)/'"
+	@# Clean up temp directory
+	@echo "🧹 Cleaning up temporary directory..."
+	ssh -p $(DECK_PORT) $(DECK_USER)@$(DECK_HOST) "rm -rf /tmp/deploy-temp"
+	@# Set executable permissions with sudo
 	@echo "🔐 Setting executable permissions..."
-	ssh -p $(DECK_PORT) $(DECK_USER)@$(DECK_HOST) "chmod +x '$(DECK_PLUGIN_DIR)/charge-scheduler.sh'"
+	sshpass -p '$(DECK_PASSWORD)' ssh -p $(DECK_PORT) $(DECK_USER)@$(DECK_HOST) "echo '$(DECK_PASSWORD)' | sudo -S chmod +x '$(DECK_PLUGIN_DIR)/charge-scheduler.sh'"
+	@# Create user data directories for SettingsManager
+	@echo "📁 Creating user data directories..."
+	ssh -p $(DECK_PORT) $(DECK_USER)@$(DECK_HOST) "mkdir -p ~/.local/share/homebrew/settings/$(PLUGIN_NAME) && mkdir -p ~/.local/share/homebrew/data/$(PLUGIN_NAME) && mkdir -p ~/.local/share/homebrew/logs/$(PLUGIN_NAME)"
 	@echo "✅ Plugin deployed successfully to $(DECK_USER)@$(DECK_HOST):$(DECK_PLUGIN_DIR)"
 	@echo "🔄 Restart Decky Loader to reload the plugin"
 	@# Enable CEF debugging if configured
