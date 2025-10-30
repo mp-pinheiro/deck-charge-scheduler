@@ -369,3 +369,4 @@ Refer to `docs/decky/` for comprehensive Decky development documentation:
 - Smart schedule recommendations
 - Multiple configuration profiles
 - Mobile app remote control
+- Full logs at `/home/deck/homebrew/logs/deck-charge-scheduler`
