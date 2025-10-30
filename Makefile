@@ -87,20 +87,11 @@ deploy: build
 		echo "💡 Use Chrome DevTools to connect to http://$(DECK_HOST):$(CEF_DEBUG_PORT)"; \
 	fi
 
-# Deploy systemd files (one-time setup)
+# Systemd timer no longer needed - using native Decky background tasks
 deploy-systemd:
-	@echo "Setting up systemd timer on remote Steam Deck..."
-	@# Create user service directory on remote
-	ssh -p $(DECK_PORT) $(DECK_USER)@$(DECK_HOST) "mkdir -p '$(DECK_SYSTEMD_DIR)'"
-	@# Create service file on remote using printf
-	ssh -p $(DECK_PORT) $(DECK_USER)@$(DECK_HOST) "printf '[Unit]\nDescription=Steam Deck Charge Scheduler\nAfter=graphical-session.target\n\n[Service]\nType=oneshot\nExecStart=$(DECK_PLUGIN_DIR)/charge-scheduler.sh schedule\nStandardOutput=null\nStandardError=journal\n\n[Install]\nWantedBy=timer.target\n' > '$(DECK_SYSTEMD_DIR)/charge-scheduler.service'"
-	@# Create timer file on remote using printf
-	ssh -p $(DECK_PORT) $(DECK_USER)@$(DECK_HOST) "printf '[Unit]\nDescription=Run charge scheduler every 5 minutes\nRequires=charge-scheduler.service\n\n[Timer]\nOnCalendar=*:0/5\nPersistent=true\n\n[Install]\nWantedBy=timers.target\n' > '$(DECK_SYSTEMD_DIR)/charge-scheduler.timer'"
-	@# Enable and start timer on remote
-	ssh -p $(DECK_PORT) $(DECK_USER)@$(DECK_HOST) "systemctl --user daemon-reload"
-	ssh -p $(DECK_PORT) $(DECK_USER)@$(DECK_HOST) "systemctl --user enable charge-scheduler.timer"
-	ssh -p $(DECK_PORT) $(DECK_USER)@$(DECK_HOST) "systemctl --user start charge-scheduler.timer"
-	@echo "✅ Systemd timer setup complete on remote Steam Deck!"
+	@echo "⚠️ Systemd timer no longer required"
+	@echo "The plugin now uses native Decky background tasks."
+	@echo "Simply run 'make deploy' to install the plugin."
 
 # Clean build artifacts
 clean:
@@ -132,8 +123,10 @@ undeploy:
 # Development workflow: install, build, deploy
 dev: install build deploy
 
-# Full setup including systemd
-full-setup: dev deploy-systemd
+# Full setup - systemd no longer needed
+full-setup: dev
+	@echo "✅ Plugin setup complete!"
+	@echo "The plugin uses native Decky background tasks - no systemd setup required."
 
 # CEF debugging helper
 debug-cef:
@@ -152,14 +145,14 @@ help:
 	@echo "  install          - Install dependencies (pnpm i)"
 	@echo "  watch            - Build with file watching (pnpm run watch)"
 	@echo "  deploy           - Build and deploy to remote Steam Deck"
-	@echo "  deploy-systemd   - Set up systemd timer on remote Steam Deck (one-time)"
+	@echo "  deploy-systemd   - No longer needed (uses native Decky background tasks)"
 	@echo "  clean            - Remove build artifacts"
 	@echo "  verify           - Check remote deployment structure"
 	@echo "  verify-full      - Comprehensive deployment verification"
 	@echo "  debug-cef        - Set up CEF debugging for development"
 	@echo "  undeploy         - Remove deployed plugin from remote Steam Deck"
 	@echo "  dev              - Full development workflow (install + build + deploy)"
-	@echo "  full-setup       - Complete setup including systemd on remote Steam Deck"
+	@echo "  full-setup       - Complete plugin setup (systemd no longer required)"
 	@echo "  help             - Show this help message"
 	@echo ""
 	@echo "Development scripts:"
