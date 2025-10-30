@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.4] - 2024-10-30
+
+### Changed
+- **Error Handling Philosophy**: Implemented "fail fast, fail clearly" approach throughout the entire plugin
+- **Background Scheduler**: Replaced systemd timer with native Decky background tasks for better integration
+- **Status Display**: Enhanced UI to show actual error states instead of hiding problems with fallbacks
+- **Configuration Loading**: Eliminated multi-layer fallback chain in favor of single source of truth
+
+### Fixed
+- **Hidden Errors**: Removed all error hiding patterns that were masking actual configuration and system problems
+- **Bash Script Error Handling**: Removed `set +e` and silent fallbacks that made debugging difficult
+- **Python Backend Exceptions**: Configuration and status methods now raise exceptions instead of returning fallback data
+- **React Frontend Fallbacks**: Eliminated fake status generation and default value fallbacks
+- **JSON Configuration**: Now fails loudly when configuration file is missing or corrupted
+
+### Removed
+- **Error Fallback Mechanisms**: Three-layer fallback chain in bash script configuration loading
+- **Fake Status Generation**: `setFallbackStatus()` function that created misleading status information
+- **Silent Failures**: All `set +e` patterns and catch-all exception handlers that hid problems
+- **Default Value Fallbacks**: Frontend default values (?? operators) that masked backend failures
+- **Systemd Timer Dependency**: Plugin now uses native Decky background tasks instead
+
+### Added
+- **Background Task Management**: Native Decky asyncio-based scheduler with proper lifecycle management
+- **Scheduler Status Display**: Visual indicators showing background scheduler running/active state
+- **Configuration Validation**: Explicit checks for required configuration variables with clear error messages
+- **Debugging Commands**: Documentation for checking actual system battery charge levels
+- **Exception Propagation**: Proper error reporting from backend to frontend with specific error details
+
+### Improved
+- **Error Visibility**: All configuration, status, and communication errors are now immediately visible to users
+- **Debugging Experience**: Clear error messages and status indicators help identify actual problems
+- **System Integration**: Better HOME environment handling for subprocess calls
+- **Log Output**: Enhanced logging with failure detection for log file writes
+
+### Technical Details
+- **Bash Script**: Removed silent error suppression and multi-source configuration loading
+- **Python Backend**: Added proper exception handling with `raise Exception()` instead of return defaults
+- **React Frontend**: Eliminated fallback mechanisms, added null state handling with error display
+- **Background Tasks**: Implemented asyncio-based scheduler with proper cancellation handling
+- **Configuration Flow**: Single JSON configuration source with validation and loud failures
+
 ## [1.1.3] - 2024-10-30
 
 ### Changed
