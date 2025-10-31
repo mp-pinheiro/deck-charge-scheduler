@@ -66,7 +66,6 @@ class Plugin:
             decky_plugin.logger.error(f"Error saving config to {self.settings_file}: {e}")
             raise Exception(f"Configuration write failed: {e}")
 
-        
     async def _tail_logs(self, n: int) -> list[str]:
         if not self.log_path.exists():
             return []
@@ -181,7 +180,7 @@ class Plugin:
                 "next_change": next_change,
                 "config": cfg,
                 "script_path": str(self.script_path),
-                            }
+            }
         except Exception as e:
             decky_plugin.logger.error(f"get_status error: {e}")
             raise Exception(f"Get status failed: {e}")
