@@ -10,7 +10,6 @@ DBUS_INTERFACE="com.steampowered.SteamOSManager1.RootManager"
 DBUS_METHOD="SetMaxChargeLevel"
 LOG_FILE="$HOME/.local/share/charge-scheduler.log"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_FILE="$SCRIPT_DIR/charge-scheduler.conf"
 
 load_config() {
     local json_settings_file="$HOME/homebrew/data/deck-charge-scheduler/settings.json"
@@ -170,8 +169,7 @@ main() {
             echo "  Start Time: ${START_HOUR}:${START_MINUTE}"
             echo "  Duration: ${DURATION_MINUTES} minutes"
             echo "  Charge Limit: ${CHARGE_LIMIT}%"
-            echo "  Config File: $CONFIG_FILE"
-            ;;
+                        ;;
         "reload")
             load_config
             check_permissions

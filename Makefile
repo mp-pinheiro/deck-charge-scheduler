@@ -8,7 +8,7 @@ endif
 # Constant definitions
 PLUGIN_NAME = deck-charge-scheduler
 DEPLOY_DIR = $(DECK_PLUGIN_DIR)
-REQUIRED_FILES = dist/index.js dist/index.js.map plugin.json main.py package.json charge-scheduler.sh charge-scheduler.conf
+REQUIRED_FILES = dist/index.js dist/index.js.map plugin.json main.py package.json charge-scheduler.sh
 
 # Connection settings (can be overridden via .env)
 DECK_HOST ?= steamdeck
